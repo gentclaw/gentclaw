@@ -14,8 +14,10 @@ for cmd in node npm git; do
   command -v "$cmd" &>/dev/null || { echo "Error: $cmd not found"; exit 1; }
 done
 
-# Clone or pull
-if [ -d "$INSTALL_DIR/.git" ]; then
+# Clone or pull (skip when GENTCLAW_INSTALL points at an existing repo checkout)
+if [ "${GENTCLAW_INSTALL:-}" != "" ] && [ -d "$INSTALL_DIR/.git" ]; then
+  echo "Using local repo at $INSTALL_DIR"
+elif [ -d "$INSTALL_DIR/.git" ]; then
   echo "Updating $INSTALL_DIR..."
   git -C "$INSTALL_DIR" pull --ff-only
 else
@@ -30,6 +32,7 @@ npm run build --silent
 
 # Symlink
 mkdir -p "$BIN_DIR"
+rm -f "$BIN_DIR/gentclaw"
 cat > "$BIN_DIR/gentclaw" <<'SHIM'
 #!/usr/bin/env bash
 exec node "${GENTCLAW_INSTALL:-$HOME/.local/share/gentclaw}/dist/cli.js" "$@"
