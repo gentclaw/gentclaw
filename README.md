@@ -11,9 +11,20 @@ Always-on AI agent daemon you talk to through Slack.
 - Session management with conversation context
 - OS service install (launchd / systemd)
 
-## Quick start
+## Install
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/gentclaw/gentclaw/main/install.sh | bash
+```
+
+Clones to `~/.local/share/gentclaw`, builds, adds `gentclaw` to `~/.local/bin`, runs setup.
+
+Override paths: `GENTCLAW_INSTALL`, `GENTCLAW_BIN`.
+
+### Manual
+
+```bash
+git clone https://github.com/gentclaw/gentclaw.git && cd gentclaw
 npm install && npm run build
 node dist/cli.js setup
 node dist/cli.js install
