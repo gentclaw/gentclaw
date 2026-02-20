@@ -99,7 +99,7 @@ export async function runAgent(opts: RunOpts): Promise<string> {
   if (!config) throw new RunError(`Agent not found: ${opts.agentId}`);
 
   const provider = getProvider(config.provider);
-  const cwd = config.folder ?? process.cwd();
+  const cwd = config.cwd ?? process.cwd();
 
   // Session management — first message creates UUID, subsequent resume
   let cliSessionId = getCliSessionId(opts.sessionKey);

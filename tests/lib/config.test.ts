@@ -53,7 +53,7 @@ describe('config', () => {
   it('returns configured agents', () => {
     writeSettings({
       agents: {
-        coder: { name: 'Coder', provider: 'claude', model: 'opus', folder: '/tmp' },
+        coder: { name: 'Coder', provider: 'claude', model: 'opus', cwd: '/tmp' },
       },
     });
     clearConfigCache();
@@ -62,7 +62,7 @@ describe('config', () => {
   });
 
   it('returns configured defaultAgentId', () => {
-    writeSettings({ defaultAgent: 'myagent', agents: { myagent: { name: 'My', provider: 'claude', model: 'sonnet', folder: '/tmp' } } });
+    writeSettings({ defaultAgent: 'myagent', agents: { myagent: { name: 'My', provider: 'claude', model: 'sonnet', cwd: '/tmp' } } });
     clearConfigCache();
     expect(getDefaultAgentId()).toBe('myagent');
   });
@@ -75,7 +75,7 @@ describe('config', () => {
 
   it('hasAgents returns true when agents exist', () => {
     writeSettings({
-      agents: { a: { name: 'A', provider: 'claude', model: 'sonnet', folder: '/tmp' } },
+      agents: { a: { name: 'A', provider: 'claude', model: 'sonnet', cwd: '/tmp' } },
     });
     clearConfigCache();
     expect(hasAgents()).toBe(true);

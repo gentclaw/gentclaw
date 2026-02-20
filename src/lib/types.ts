@@ -18,12 +18,12 @@ export type Agent = {
   name: string;
   provider: string;
   model: string;
-  folder: string;
+  cwd: string;
   systemPrompt?: string;
   heartbeat?: {
     enabled: boolean;
     intervalMinutes?: number; // default: 60
-    promptFile?: string; // default: HEARTBEAT.md in agent folder
+    prompt?: string; // inline heartbeat prompt; falls back to HEARTBEAT_FALLBACK_PROMPT
   };
 };
 

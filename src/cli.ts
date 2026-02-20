@@ -44,7 +44,7 @@ function showAgents(): void {
   const defaultId = getDefaultAgentId();
   for (const [id, cfg] of Object.entries(agents)) {
     const marker = id === defaultId ? '→' : ' ';
-    console.log(`${marker} ${id}: ${cfg.name} (${cfg.provider}/${cfg.model}) — ${cfg.folder}`);
+    console.log(`${marker} ${id}: ${cfg.name} (${cfg.provider}/${cfg.model}) — ${cfg.cwd}`);
   }
 }
 

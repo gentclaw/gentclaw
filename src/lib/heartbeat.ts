@@ -1,12 +1,9 @@
-import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { getAgents } from './config.js';
 import { processMessage } from './pipeline.js';
 import { runSequential } from './sequencer.js';
 import { log } from './log.js';
 import {
   DEFAULT_HEARTBEAT_INTERVAL_MIN,
-  HEARTBEAT_PROMPT_FILE,
   HEARTBEAT_FALLBACK_PROMPT,
 } from './constants.js';
 import type { Agent, InboundMsg } from './types.js';
@@ -17,28 +14,14 @@ type AgentTimer = { agentId: string; timer: ReturnType<typeof setInterval> };
 
 let timers: AgentTimer[] = [];
 
-/** Read heartbeat prompt from agent's folder. Falls back to default prompt. */
-export function readPrompt(agent: Agent): string {
-  const file = agent.heartbeat?.promptFile ?? HEARTBEAT_PROMPT_FILE;
-  const candidates = [
-    join(agent.folder, file),
-    join(agent.folder, file.toLowerCase()),
-  ];
-  for (const p of candidates) {
-    if (existsSync(p)) {
-      try {
-        return readFileSync(p, 'utf-8').trim();
-      } catch {
-        L.warn('failed to read heartbeat file', { path: p });
-      }
-    }
-  }
-  return HEARTBEAT_FALLBACK_PROMPT;
+/** Resolve heartbeat prompt: inline config → fallback default. */
+export function resolvePrompt(agent: Agent): string {
+  return agent.heartbeat?.prompt ?? HEARTBEAT_FALLBACK_PROMPT;
 }
 
 /** Fire a single heartbeat for an agent. */
 export async function fireHeartbeat(agentId: string, agent: Agent): Promise<string | null> {
-  const prompt = readPrompt(agent);
+  const prompt = resolvePrompt(agent);
   const msg: InboundMsg = {
     sender: 'heartbeat',
     message: prompt,

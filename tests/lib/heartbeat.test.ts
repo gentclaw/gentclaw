@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -11,7 +11,7 @@ vi.mock('../../src/lib/pipeline.js', () => ({
   processMessage: vi.fn().mockResolvedValue('heartbeat response'),
 }));
 
-const { readPrompt, fireHeartbeat, startHeartbeat, stopHeartbeat, heartbeatAgents } =
+const { resolvePrompt, fireHeartbeat, startHeartbeat, stopHeartbeat, heartbeatAgents } =
   await import('../../src/lib/heartbeat.js');
 const { processMessage } = await import('../../src/lib/pipeline.js');
 const { writeSettings, clearConfigCache } = await import('../../src/lib/config.js');
@@ -20,14 +20,14 @@ const { HEARTBEAT_FALLBACK_PROMPT } = await import('../../src/lib/constants.js')
 
 import type { Agent } from '../../src/lib/types.js';
 
-const agentFolder = join(testHome, 'agent-workspace');
+const agentCwd = join(testHome, 'agent-workspace');
 
 function makeAgent(overrides?: Partial<Agent>): Agent {
   return {
     name: 'test-agent',
     provider: 'claude',
     model: 'sonnet',
-    folder: agentFolder,
+    cwd: agentCwd,
     heartbeat: { enabled: true, intervalMinutes: 1 },
     ...overrides,
   };
@@ -37,7 +37,7 @@ describe('heartbeat', () => {
   beforeEach(() => {
     rmSync(testHome, { recursive: true, force: true });
     ensureDirectories();
-    mkdirSync(agentFolder, { recursive: true });
+    mkdirSync(agentCwd, { recursive: true });
     clearConfigCache();
     vi.clearAllMocks();
   });
@@ -47,36 +47,27 @@ describe('heartbeat', () => {
     rmSync(testHome, { recursive: true, force: true });
   });
 
-  describe('readPrompt', () => {
-    it('reads HEARTBEAT.md from agent folder', () => {
-      writeFileSync(join(agentFolder, 'HEARTBEAT.md'), 'Check pending PRs.');
-      const prompt = readPrompt(makeAgent());
-      expect(prompt).toBe('Check pending PRs.');
+  describe('resolvePrompt', () => {
+    it('returns inline prompt from agent config', () => {
+      const agent = makeAgent({ heartbeat: { enabled: true, prompt: 'Check pending PRs.' } });
+      expect(resolvePrompt(agent)).toBe('Check pending PRs.');
     });
 
-    it('falls back to lowercase heartbeat.md', () => {
-      writeFileSync(join(agentFolder, 'heartbeat.md'), 'lowercase prompt');
-      const prompt = readPrompt(makeAgent());
-      expect(prompt).toBe('lowercase prompt');
+    it('returns fallback when no inline prompt', () => {
+      const agent = makeAgent();
+      expect(resolvePrompt(agent)).toBe(HEARTBEAT_FALLBACK_PROMPT);
     });
 
-    it('returns fallback when no file exists', () => {
-      const prompt = readPrompt(makeAgent());
-      expect(prompt).toBe(HEARTBEAT_FALLBACK_PROMPT);
-    });
-
-    it('uses custom promptFile from agent config', () => {
-      writeFileSync(join(agentFolder, 'CUSTOM.md'), 'custom prompt');
-      const agent = makeAgent({ heartbeat: { enabled: true, promptFile: 'CUSTOM.md' } });
-      const prompt = readPrompt(agent);
-      expect(prompt).toBe('custom prompt');
+    it('returns fallback when heartbeat config absent', () => {
+      const agent = makeAgent({ heartbeat: undefined });
+      expect(resolvePrompt(agent)).toBe(HEARTBEAT_FALLBACK_PROMPT);
     });
   });
 
   describe('fireHeartbeat', () => {
     it('calls processMessage with correct shape', async () => {
-      writeFileSync(join(agentFolder, 'HEARTBEAT.md'), 'do stuff');
-      const resp = await fireHeartbeat('test', makeAgent());
+      const agent = makeAgent({ heartbeat: { enabled: true, prompt: 'do stuff' } });
+      const resp = await fireHeartbeat('test', agent);
 
       expect(resp).toBe('heartbeat response');
       expect(processMessage).toHaveBeenCalledWith(
@@ -90,6 +81,13 @@ describe('heartbeat', () => {
       );
     });
 
+    it('uses fallback prompt when none configured', async () => {
+      await fireHeartbeat('test', makeAgent());
+      expect(processMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ message: HEARTBEAT_FALLBACK_PROMPT }),
+      );
+    });
+
     it('returns null on error', async () => {
       vi.mocked(processMessage).mockRejectedValueOnce(new Error('boom'));
       const resp = await fireHeartbeat('test', makeAgent());
@@ -99,7 +97,7 @@ describe('heartbeat', () => {
 
   describe('startHeartbeat / stopHeartbeat', () => {
     it('schedules timers for enabled agents only', () => {
-      const noHb: Agent = { name: 'c', provider: 'claude', model: 'sonnet', folder: agentFolder };
+      const noHb: Agent = { name: 'c', provider: 'claude', model: 'sonnet', cwd: agentCwd };
       writeSettings({
         agents: {
           a: makeAgent({ name: 'a', heartbeat: { enabled: true, intervalMinutes: 5 } }),

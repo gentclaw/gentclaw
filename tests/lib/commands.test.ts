@@ -6,8 +6,8 @@ const mockGetSettings = vi.fn(() => ({}));
 // Mock dependencies
 vi.mock('../../src/lib/config.js', () => ({
   getAgents: () => ({
-    coder: { name: 'Coder', provider: 'claude', model: 'sonnet', folder: '/tmp' },
-    writer: { name: 'Writer', provider: 'claude', model: 'haiku', folder: '/tmp' },
+    coder: { name: 'Coder', provider: 'claude', model: 'sonnet', cwd: '/tmp' },
+    writer: { name: 'Writer', provider: 'claude', model: 'haiku', cwd: '/tmp' },
   }),
   getDefaultAgentId: () => 'coder',
   getSettings: () => mockGetSettings(),

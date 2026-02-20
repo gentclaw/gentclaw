@@ -48,7 +48,7 @@ async function setup(): Promise<void> {
   // Agent
   console.log('\n--- Default Agent ---');
   const agentName = await ask('Agent name', 'Assistant');
-  const folder = await ask('Working directory', process.cwd());
+  const cwd = await ask('Working directory', process.cwd());
 
   // Allowed senders
   console.log('\n--- Access Control ---');
@@ -67,7 +67,7 @@ async function setup(): Promise<void> {
         name: agentName,
         provider,
         model,
-        folder,
+        cwd,
       },
     },
     defaultAgent: 'default',

@@ -5,8 +5,8 @@ import type { InboundMsg } from '../../src/lib/types.js';
 // Mock config and sessions
 vi.mock('../../src/lib/config.js', () => ({
   getAgents: () => ({
-    coder: { name: 'Coder', provider: 'claude', model: 'sonnet', folder: '/tmp' },
-    writer: { name: 'Writer', provider: 'claude', model: 'sonnet', folder: '/tmp' },
+    coder: { name: 'Coder', provider: 'claude', model: 'sonnet', cwd: '/tmp' },
+    writer: { name: 'Writer', provider: 'claude', model: 'sonnet', cwd: '/tmp' },
   }),
   getDefaultAgentId: () => 'coder',
 }));
