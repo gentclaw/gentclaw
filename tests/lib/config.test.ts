@@ -1,0 +1,83 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { randomBytes } from 'node:crypto';
+
+const testHome = join(tmpdir(), `gentclaw-cfg-test-${randomBytes(4).toString('hex')}`);
+process.env['GENTCLAW_HOME'] = testHome;
+
+const { getSettings, updateSettings, writeSettings, getAgents, getDefaultAgentId, hasAgents, clearConfigCache } =
+  await import('../../src/lib/config.js');
+const { ConfigError } = await import('../../src/lib/errors.js');
+const { ensureDirectories } = await import('../../src/lib/fs-utils.js');
+
+describe('config', () => {
+  beforeEach(() => {
+    rmSync(testHome, { recursive: true, force: true });
+    ensureDirectories();
+    clearConfigCache();
+  });
+
+  afterEach(() => {
+    rmSync(testHome, { recursive: true, force: true });
+  });
+
+  it('returns empty settings when file missing', () => {
+    const s = getSettings();
+    expect(s).toEqual({});
+  });
+
+  it('writes and reads settings', () => {
+    writeSettings({ devMode: true, defaultAgent: 'test' });
+    clearConfigCache();
+    const s = getSettings();
+    expect(s.devMode).toBe(true);
+    expect(s.defaultAgent).toBe('test');
+  });
+
+  it('updates settings atomically', () => {
+    writeSettings({ devMode: false });
+    clearConfigCache();
+    updateSettings(s => ({ ...s, devMode: true }));
+    clearConfigCache();
+    expect(getSettings().devMode).toBe(true);
+  });
+
+  it('throws ConfigError when no agents configured', () => {
+    writeSettings({});
+    clearConfigCache();
+    expect(() => getAgents()).toThrow(ConfigError);
+  });
+
+  it('returns configured agents', () => {
+    writeSettings({
+      agents: {
+        coder: { name: 'Coder', provider: 'claude', model: 'opus', folder: '/tmp' },
+      },
+    });
+    clearConfigCache();
+    const agents = getAgents();
+    expect(agents['coder']!.name).toBe('Coder');
+  });
+
+  it('returns configured defaultAgentId', () => {
+    writeSettings({ defaultAgent: 'myagent', agents: { myagent: { name: 'My', provider: 'claude', model: 'sonnet', folder: '/tmp' } } });
+    clearConfigCache();
+    expect(getDefaultAgentId()).toBe('myagent');
+  });
+
+  it('hasAgents returns false when none configured', () => {
+    writeSettings({});
+    clearConfigCache();
+    expect(hasAgents()).toBe(false);
+  });
+
+  it('hasAgents returns true when agents exist', () => {
+    writeSettings({
+      agents: { a: { name: 'A', provider: 'claude', model: 'sonnet', folder: '/tmp' } },
+    });
+    clearConfigCache();
+    expect(hasAgents()).toBe(true);
+  });
+});

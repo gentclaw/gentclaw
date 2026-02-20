@@ -1,0 +1,39 @@
+import { describe, it, expect } from 'vitest';
+import { splitMessage, stripAnsi } from '../../src/lib/text.js';
+
+describe('splitMessage', () => {
+  it('returns single chunk for short messages', () => {
+    expect(splitMessage('hello', 100)).toEqual(['hello']);
+  });
+
+  it('splits at newlines within limit', () => {
+    const text = 'line1\nline2\nline3';
+    const chunks = splitMessage(text, 10);
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(10);
+    }
+  });
+
+  it('splits at spaces if no newlines', () => {
+    const text = 'word1 word2 word3 word4';
+    const chunks = splitMessage(text, 12);
+    expect(chunks.length).toBeGreaterThan(1);
+  });
+
+  it('hard-splits if no spaces or newlines', () => {
+    const text = 'a'.repeat(20);
+    const chunks = splitMessage(text, 8);
+    expect(chunks.length).toBeGreaterThan(1);
+  });
+});
+
+describe('stripAnsi', () => {
+  it('removes ANSI escape codes', () => {
+    expect(stripAnsi('\x1b[31mred\x1b[0m')).toBe('red');
+  });
+
+  it('leaves plain text unchanged', () => {
+    expect(stripAnsi('plain text')).toBe('plain text');
+  });
+});
