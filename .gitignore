@@ -1,0 +1,9 @@
+node_modules/
+dist/
+src/**/*.js
+src/**/*.js.map
+.env
+*.log
+*.swp
+.DS_Store
+*.md

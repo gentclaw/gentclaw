@@ -1,0 +1,43 @@
+import { MAX_MSG_LENGTH } from './constants.js';
+
+/**
+ * Split text into chunks of maxLen characters.
+ * Tries to split at newlines first, then at spaces.
+ */
+export function splitMessage(text: string, maxLen: number = MAX_MSG_LENGTH): string[] {
+  if (text.length <= maxLen) return [text];
+
+  const chunks: string[] = [];
+  let remaining = text;
+
+  while (remaining.length > 0) {
+    if (remaining.length <= maxLen) {
+      chunks.push(remaining);
+      break;
+    }
+
+    // Try to split at a newline within the limit
+    let splitIdx = remaining.lastIndexOf('\n', maxLen);
+
+    // If no newline, try a space
+    if (splitIdx <= 0) {
+      splitIdx = remaining.lastIndexOf(' ', maxLen);
+    }
+
+    // If still nothing, hard-split at maxLen
+    if (splitIdx <= 0) {
+      splitIdx = maxLen;
+    }
+
+    chunks.push(remaining.slice(0, splitIdx));
+    remaining = remaining.slice(splitIdx).trimStart();
+  }
+
+  return chunks;
+}
+
+/** Strip ANSI escape codes from text. */
+export function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1b\[[0-9;]*m/g, '');
+}
