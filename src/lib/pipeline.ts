@@ -4,6 +4,7 @@ import { runAgent } from './run.js';
 import { getAgents } from './config.js';
 import { setSessionAgent, stopFlagPath, maybeCleanupSessions } from './sessions.js';
 import { runHooks } from './hooks.js';
+import { HEARTBEAT_RUN_TIMEOUT_MS } from './constants.js';
 import { log } from './log.js';
 import type { InboundMsg } from './types.js';
 
@@ -39,10 +40,12 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
     return 'Agent stopped.';
   }
 
+  const timeout = msg.channel === 'heartbeat' ? HEARTBEAT_RUN_TIMEOUT_MS : undefined;
   const response = await runAgent({
     agentId: route.agentId,
     message: route.message,
     sessionKey: msg.sessionKey ?? msg.messageId,
+    timeout,
   });
 
   // Post-message hooks (audit, transform response)

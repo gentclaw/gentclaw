@@ -16,6 +16,7 @@ type RunOpts = {
   agentId: string;
   message: string;
   sessionKey: string;
+  timeout?: number;
 };
 
 type RunResult = {
@@ -124,14 +125,14 @@ export async function runAgent(opts: RunOpts): Promise<string> {
     const id = randomUUID();
     setCliSessionId(opts.sessionKey, id);
     const a = buildProviderArgs(provider, { ...common, sessionId: id, isResume: false });
-    const r = await runCommand(provider.command, a, { cwd, timeout: MAX_RUN_TIMEOUT_MS, stopFlagFile: flagFile });
+    const r = await runCommand(provider.command, a, { cwd, timeout: opts.timeout ?? MAX_RUN_TIMEOUT_MS, stopFlagFile: flagFile });
     return parseProviderOutput(provider, r.response);
   };
 
   try {
     const result = await runCommand(provider.command, args, {
       cwd,
-      timeout: MAX_RUN_TIMEOUT_MS,
+      timeout: opts.timeout ?? MAX_RUN_TIMEOUT_MS,
       stopFlagFile: flagFile,
     });
     return parseProviderOutput(provider, result.response);

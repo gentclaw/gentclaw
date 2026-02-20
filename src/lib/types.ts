@@ -20,6 +20,11 @@ export type Agent = {
   model: string;
   folder: string;
   systemPrompt?: string;
+  heartbeat?: {
+    enabled: boolean;
+    intervalMinutes?: number; // default: 60
+    promptFile?: string; // default: HEARTBEAT.md in agent folder
+  };
 };
 
 // Custom command — user-defined slash command that routes a prompt to an agent
@@ -44,6 +49,9 @@ export type Settings = {
   commands?: Record<string, CustomCommand>;
 };
 
+/** Message source channel */
+export type MsgChannel = 'slack' | 'heartbeat';
+
 // Message pipeline
 export type InboundMsg = {
   sender: string;
@@ -52,6 +60,7 @@ export type InboundMsg = {
   messageId: string;
   sessionKey?: string;
   agent?: string; // pre-routed agent ID
+  channel?: MsgChannel;
 };
 
 // Hooks

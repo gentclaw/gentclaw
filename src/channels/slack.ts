@@ -8,6 +8,7 @@ import { splitMessage } from '../lib/text.js';
 import { ensureDirectories } from '../lib/fs-utils.js';
 import { initLog, log } from '../lib/log.js';
 import { errMsg, ConfigError } from '../lib/errors.js';
+import { startHeartbeat, stopHeartbeat } from '../lib/heartbeat.js';
 import type { InboundMsg } from '../lib/types.js';
 
 const L = log('slack');
@@ -79,6 +80,7 @@ async function handleEvent(
     messageId: ts,
     sessionKey: sk,
     agent: cmdResult?.agent,
+    channel: 'slack',
   };
 
   // Process with per-session serialization
@@ -137,4 +139,13 @@ export async function startSlack(): Promise<void> {
 
   await app.start();
   L.info('slack listener started');
+
+  startHeartbeat();
+
+  const shutdown = () => {
+    stopHeartbeat();
+    app.stop().catch(() => {});
+  };
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
 }

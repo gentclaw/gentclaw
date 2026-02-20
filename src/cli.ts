@@ -3,6 +3,7 @@ import { getSettings, getAgents, getDefaultAgentId } from './lib/config.js';
 import { listProviders } from './lib/providers.js';
 import { PATHS } from './lib/paths.js';
 import { installService, uninstallService, serviceStatus } from './lib/service.js';
+import { DEFAULT_HEARTBEAT_INTERVAL_MIN } from './lib/constants.js';
 
 const command = process.argv[2];
 
@@ -21,6 +22,9 @@ Info:
   agents       List configured agents
   providers    List available providers
   status       Show configuration summary
+
+Heartbeat:
+  heartbeat [agent]  Trigger heartbeat manually (one agent or all)
 
 Maintenance:
   setup        Run interactive setup wizard
@@ -56,6 +60,11 @@ function showStatus(): void {
   const providers = listProviders();
   console.log(`Agents: ${Object.keys(agents).length} (default: ${defaultId})`);
   console.log(`Providers: ${providers.join(', ')}`);
+
+  const hbAgents = Object.entries(agents).filter(([, a]) => a.heartbeat?.enabled);
+  if (hbAgents.length > 0) {
+    console.log(`Heartbeat: ${hbAgents.map(([id, a]) => `${id} (${a.heartbeat?.intervalMinutes ?? DEFAULT_HEARTBEAT_INTERVAL_MIN}m)`).join(', ')}`);
+  }
 }
 
 async function startProcess(): Promise<void> {
@@ -67,6 +76,34 @@ async function startProcess(): Promise<void> {
 
   const { startSlack } = await import('./channels/slack.js');
   await startSlack();
+}
+
+async function runHeartbeat(): Promise<void> {
+  const { initLog } = await import('./lib/log.js');
+  const { ensureDirectories } = await import('./lib/fs-utils.js');
+  ensureDirectories();
+  initLog({ verbose: getSettings().logging?.verbose });
+
+  const { fireHeartbeat } = await import('./lib/heartbeat.js');
+  const agents = getAgents();
+  const targetId = process.argv[3];
+
+  if (targetId) {
+    const agent = agents[targetId];
+    if (!agent) { console.error(`Agent not found: ${targetId}`); process.exit(1); }
+    const resp = await fireHeartbeat(targetId, agent);
+    if (resp) console.log(resp);
+  } else {
+    for (const [id, agent] of Object.entries(agents)) {
+      if (!agent.heartbeat?.enabled) {
+        console.log(`⏭ ${id}: heartbeat disabled`);
+        continue;
+      }
+      console.log(`▶ ${id}:`);
+      const resp = await fireHeartbeat(id, agent);
+      if (resp) console.log(resp);
+    }
+  }
 }
 
 const commands: Record<string, () => void> = {
@@ -113,6 +150,12 @@ const commands: Record<string, () => void> = {
   uninstall: () => {
     uninstallService();
     console.log('Service removed.');
+  },
+  heartbeat: () => {
+    runHeartbeat().catch(err => {
+      console.error('Heartbeat failed:', err);
+      process.exit(1);
+    });
   },
 };
 
