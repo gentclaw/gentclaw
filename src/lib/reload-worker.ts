@@ -11,7 +11,14 @@ const SCRIPT_DIR = resolve(import.meta.dirname, '..', '..');
 const LABEL = 'com.gentclaw.agent';
 
 function exec(cmd: string): void {
-  execSync(cmd, { cwd: SCRIPT_DIR, stdio: 'inherit' });
+  execSync(cmd, {
+    cwd: SCRIPT_DIR,
+    stdio: 'inherit',
+    env: {
+      PATH: process.env.PATH || '',
+      HOME: process.env.HOME || '',
+    },
+  });
 }
 
 try {

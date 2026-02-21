@@ -154,6 +154,10 @@ const handlers: Record<string, CmdHandler> = {
       cwd: SCRIPT_DIR,
       detached: true,
       stdio: 'ignore',
+      env: {
+        PATH: process.env.PATH || '',
+        HOME: process.env.HOME || '',
+      },
     });
     child.unref();
     return { response: 'Reloading... (build + restart service)', skipInvoke: true };

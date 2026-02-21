@@ -40,7 +40,11 @@ function runCommand(
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, FORCE_COLOR: '0' },
+      env: {
+        PATH: process.env.PATH || '',
+        HOME: process.env.HOME || '',
+        FORCE_COLOR: '0',
+      },
     });
 
     const stdout: Buffer[] = [];

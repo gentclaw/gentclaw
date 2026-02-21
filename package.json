@@ -1,6 +1,6 @@
 {
   "name": "gentclaw",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "license": "MIT",
   "author": "Alex Markovic (https://gentclaw.com)",
   "type": "module",
@@ -8,7 +8,10 @@
     "build": "tsc",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "start": "node dist/cli.js start"
+    "start": "node dist/cli.js start",
+    "reload": "node dist/lib/reload-worker.js",
+    "preversion": "npm test && npm run build",
+    "postversion": "git push && git push --tags"
   },
   "dependencies": {
     "@slack/bolt": "^4.1.0",
