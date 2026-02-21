@@ -44,6 +44,8 @@ function runCommand(
         PATH: process.env.PATH || '',
         HOME: process.env.HOME || '',
         FORCE_COLOR: '0',
+        // Claude Code SDK auth — required for spawned claude to authenticate
+        CLAUDE_CODE_ENTRYPOINT: process.env.CLAUDE_CODE_ENTRYPOINT || '',
       },
     });
 
