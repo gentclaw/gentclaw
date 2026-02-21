@@ -46,6 +46,8 @@ function runCommand(
         FORCE_COLOR: '0',
         // Claude Code SDK auth — required for spawned claude to authenticate
         CLAUDE_CODE_ENTRYPOINT: process.env.CLAUDE_CODE_ENTRYPOINT || '',
+        // Explicitly prevent nested Claude Code session errors
+        CLAUDECODE: '',
       },
     });
 
@@ -81,6 +83,7 @@ function runCommand(
       clearTimeout(timer);
       const rawOut = stripAnsi(Buffer.concat(stdout).toString('utf-8'));
       const rawErr = stripAnsi(Buffer.concat(stderr).toString('utf-8'));
+      if (rawErr) L.warn('child stderr', { code, err: rawErr.slice(0, 200) });
       settle(() => {
         if (code !== 0 && !rawOut) {
           reject(new RunError(rawErr || `Process exited with code ${code}`, code ?? 1));
