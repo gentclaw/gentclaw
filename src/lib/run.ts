@@ -40,10 +40,10 @@ function runCommand(
       PATH: process.env.PATH || '',
       HOME: process.env.HOME || '',
       FORCE_COLOR: '0',
-      // Claude Code SDK auth — required for spawned claude to authenticate
-      CLAUDE_CODE_ENTRYPOINT: process.env.CLAUDE_CODE_ENTRYPOINT || '',
-      // Explicitly prevent nested Claude Code session errors
-      CLAUDECODE: '',
+      // Claude Code SDK auth — must be 'cli' for spawned claude to authenticate.
+      // Hardcoded because launchd environment doesn't inherit this.
+      CLAUDE_CODE_ENTRYPOINT: 'cli',
+      // CLAUDECODE intentionally omitted — its presence (even empty) triggers nested session detection
     };
     L.info('spawning', { cmd, args: args.slice(0, 4), cwd: opts.cwd, env: spawnEnv });
     const child = spawn(cmd, args, {

@@ -68,6 +68,14 @@ function showStatus(): void {
 }
 
 async function startProcess(): Promise<void> {
+  process.on('unhandledRejection', (err) => {
+    console.error('[FATAL] unhandled rejection:', err);
+  });
+  process.on('uncaughtException', (err) => {
+    console.error('[FATAL] uncaught exception:', err);
+    process.exit(1);
+  });
+
   // Load .env if present
   try {
     const dotenv = await import('dotenv');

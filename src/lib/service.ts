@@ -1,12 +1,21 @@
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { homedir, platform } from 'node:os';
 import { PATHS } from './paths.js';
 
 const LABEL = 'com.gentclaw.agent';
 const SCRIPT_DIR = resolve(import.meta.dirname, '..', '..');
-const NODE_BIN = process.execPath;
+/** Resolve stable node path — prefer brew symlink over versioned Cellar path. */
+const NODE_BIN = (() => {
+  const p = process.execPath;
+  if (!p.includes('/Cellar/')) return p;
+  try {
+    const symlink = '/opt/homebrew/bin/node';
+    if (realpathSync(symlink) === p) return symlink;
+  } catch { /* fallback to execPath */ }
+  return p;
+})();
 
 function plistPath(): string {
   return resolve(homedir(), 'Library', 'LaunchAgents', `${LABEL}.plist`);
@@ -47,9 +56,7 @@ function writePlist(): string {
   </array>
   <key>WorkingDirectory</key><string>${SCRIPT_DIR}</string>
   <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><dict>
-    <key>SuccessfulExit</key><false/>
-  </dict>
+  <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>10</integer>
   <key>StandardOutPath</key><string>${PATHS.logs}/launchd-stdout.log</string>
   <key>StandardErrorPath</key><string>${PATHS.logs}/launchd-stderr.log</string>

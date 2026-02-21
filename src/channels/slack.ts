@@ -30,16 +30,20 @@ function isAllowed(userId: string): boolean {
 
 /** Post a reply to Slack, splitting long messages. */
 async function reply(channelId: string, threadTs: string, text: string): Promise<void> {
-  const formatted = formatForSlack(text);
-  const chunks = splitMessage(formatted);
-  for (const chunk of chunks) {
-    await app.client.chat.postMessage({
-      channel: channelId,
-      text: chunk,
-      thread_ts: threadTs,
-    });
+  try {
+    const formatted = formatForSlack(text);
+    const chunks = splitMessage(formatted);
+    for (const chunk of chunks) {
+      await app.client.chat.postMessage({
+        channel: channelId,
+        text: chunk,
+        thread_ts: threadTs,
+      });
+    }
+    L.info('posted to slack', { channel: channelId, chunks: chunks.length });
+  } catch (err) {
+    L.error('reply failed', { channel: channelId, error: errMsg(err) });
   }
-  L.info('posted to slack', { channel: channelId, chunks: chunks.length });
 }
 
 /** Handle a Slack event (message or app_mention). */
@@ -126,13 +130,17 @@ export async function startSlack(): Promise<void> {
   const onEvent = async ({ event }: { event: unknown }) => {
     const ev = event as Record<string, unknown>;
     if (ev['bot_id'] || ev['subtype']) return;
-    await handleEvent(
-      ev['user'] as string,
-      (ev['text'] as string ?? '').trim(),
-      ev['channel'] as string,
-      ev['ts'] as string,
-      ev['thread_ts'] as string | undefined,
-    );
+    try {
+      await handleEvent(
+        ev['user'] as string,
+        (ev['text'] as string ?? '').trim(),
+        ev['channel'] as string,
+        ev['ts'] as string,
+        ev['thread_ts'] as string | undefined,
+      );
+    } catch (err) {
+      L.error('event handler crash', { error: errMsg(err) });
+    }
   };
   app.event('message', onEvent);
   app.event('app_mention', onEvent);
