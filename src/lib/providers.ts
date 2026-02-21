@@ -12,7 +12,7 @@ const CLAUDE: Provider = {
     opus: 'claude-opus-4-6',
   },
   defaultModel: 'sonnet',
-  baseArgs: ['--verbose'],
+  baseArgs: ['--verbose', '--dangerously-skip-permissions'],
   modelFlag: '--model',
   promptFlag: '-p',
   systemPromptFlag: '--append-system-prompt',
