@@ -36,19 +36,20 @@ function runCommand(
       if (!settled) { settled = true; fn(); }
     };
 
-    L.info('spawning', { cmd, args: args.slice(0, 4), cwd: opts.cwd });
+    const spawnEnv = {
+      PATH: process.env.PATH || '',
+      HOME: process.env.HOME || '',
+      FORCE_COLOR: '0',
+      // Claude Code SDK auth — required for spawned claude to authenticate
+      CLAUDE_CODE_ENTRYPOINT: process.env.CLAUDE_CODE_ENTRYPOINT || '',
+      // Explicitly prevent nested Claude Code session errors
+      CLAUDECODE: '',
+    };
+    L.info('spawning', { cmd, args: args.slice(0, 4), cwd: opts.cwd, env: spawnEnv });
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        PATH: process.env.PATH || '',
-        HOME: process.env.HOME || '',
-        FORCE_COLOR: '0',
-        // Claude Code SDK auth — required for spawned claude to authenticate
-        CLAUDE_CODE_ENTRYPOINT: process.env.CLAUDE_CODE_ENTRYPOINT || '',
-        // Explicitly prevent nested Claude Code session errors
-        CLAUDECODE: '',
-      },
+      env: spawnEnv,
     });
 
     const stdout: Buffer[] = [];
