@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getProvider, buildProviderArgs, parseProviderOutput, registerProvider } from '../../src/lib/providers.js';
+import { getProvider, buildProviderArgs, parseProviderOutput, registerProvider, getNestedField } from '../../src/lib/providers.js';
 import type { Provider } from '../../src/lib/types.js';
 
 describe('providers', () => {
@@ -8,6 +8,14 @@ describe('providers', () => {
     expect(claude.name).toBe('Claude Code');
     expect(claude.command).toBe('claude');
     expect(claude.models['sonnet']).toBeDefined();
+  });
+
+  it('has built-in gemini provider', () => {
+    const gemini = getProvider('gemini');
+    expect(gemini.name).toBe('Gemini CLI');
+    expect(gemini.command).toBe('gemini');
+    expect(gemini.models['flash']).toBeDefined();
+    expect(gemini.models['pro']).toBeDefined();
   });
 
   it('throws for unknown provider', () => {
@@ -85,6 +93,25 @@ describe('buildProviderArgs', () => {
     expect(args).toContain('--append-system-prompt');
     expect(args).toContain('Be concise');
   });
+
+  it('skips session args when startFlag is undefined (gemini-style)', () => {
+    const noStart: Provider = {
+      ...def,
+      session: { resumeFlag: '--resume', captureIdField: 'session_id' },
+    };
+    const args = buildProviderArgs(noStart, { sessionId: 'abc', isResume: false });
+    expect(args).not.toContain('abc');
+  });
+
+  it('uses resumeFlag even when startFlag is undefined', () => {
+    const noStart: Provider = {
+      ...def,
+      session: { resumeFlag: '--resume', captureIdField: 'session_id' },
+    };
+    const args = buildProviderArgs(noStart, { sessionId: 'abc', isResume: true });
+    expect(args).toContain('--resume');
+    expect(args).toContain('abc');
+  });
 });
 
 describe('parseProviderOutput', () => {
@@ -117,5 +144,52 @@ describe('parseProviderOutput', () => {
       jsonlExtract: { type: 'assistant', textField: 'content' },
     };
     expect(parseProviderOutput(def, 'plain text')).toBe('plain text');
+  });
+
+  it('extracts JSON content via dot-path', () => {
+    const def: Provider = {
+      name: 'T', command: 't', models: {}, defaultModel: '', baseArgs: [],
+      output: 'json',
+      jsonExtract: 'response.text',
+    };
+    const raw = JSON.stringify({ response: { text: 'Hello from Gemini' }, session_id: 's1' });
+    expect(parseProviderOutput(def, raw)).toBe('Hello from Gemini');
+  });
+
+  it('falls back to raw text if JSON parse fails', () => {
+    const def: Provider = {
+      name: 'T', command: 't', models: {}, defaultModel: '', baseArgs: [],
+      output: 'json',
+      jsonExtract: 'response.text',
+    };
+    expect(parseProviderOutput(def, 'not json')).toBe('not json');
+  });
+
+  it('falls back to raw text if dot-path yields non-string', () => {
+    const def: Provider = {
+      name: 'T', command: 't', models: {}, defaultModel: '', baseArgs: [],
+      output: 'json',
+      jsonExtract: 'response.missing',
+    };
+    const raw = JSON.stringify({ response: { text: 'hi' } });
+    expect(parseProviderOutput(def, raw)).toBe(raw.trim());
+  });
+});
+
+describe('getNestedField', () => {
+  it('extracts nested values', () => {
+    expect(getNestedField({ a: { b: { c: 'deep' } } }, 'a.b.c')).toBe('deep');
+  });
+
+  it('returns undefined for missing paths', () => {
+    expect(getNestedField({ a: 1 }, 'a.b.c')).toBeUndefined();
+  });
+
+  it('returns undefined for null input', () => {
+    expect(getNestedField(null, 'a')).toBeUndefined();
+  });
+
+  it('extracts top-level values', () => {
+    expect(getNestedField({ session_id: 's1' }, 'session_id')).toBe('s1');
   });
 });

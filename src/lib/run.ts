@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { getProvider, buildProviderArgs, parseProviderOutput } from './providers.js';
+import { getProvider, buildProviderArgs, parseProviderOutput, getNestedField } from './providers.js';
 import { getAgents } from './config.js';
 import { getCliSessionId, setCliSessionId, stopFlagPath } from './sessions.js';
 import { RunError, errMsg } from './errors.js';
@@ -131,11 +131,26 @@ export async function runAgent(opts: RunOpts): Promise<string> {
   const flagFile = stopFlagPath(opts.sessionKey);
   mkdirSync(dirname(flagFile), { recursive: true });
 
+  /** Capture session ID from provider output if captureIdField is set. */
+  const captureSessionId = (raw: string) => {
+    const field = provider.session?.captureIdField;
+    if (!field) return;
+    try {
+      const obj = JSON.parse(raw);
+      const id = getNestedField(obj, field);
+      if (typeof id === 'string' && id) {
+        setCliSessionId(opts.sessionKey, id);
+        L.info('captured session id from output', { field, id });
+      }
+    } catch { /* not JSON — skip capture */ }
+  };
+
   const freshRun = async () => {
     const id = randomUUID();
     setCliSessionId(opts.sessionKey, id);
     const a = buildProviderArgs(provider, { ...common, sessionId: id, isResume: false });
     const r = await runCommand(provider.command, a, { cwd, timeout: opts.timeout ?? MAX_RUN_TIMEOUT_MS, stopFlagFile: flagFile });
+    captureSessionId(r.response);
     return parseProviderOutput(provider, r.response);
   };
 
@@ -145,6 +160,7 @@ export async function runAgent(opts: RunOpts): Promise<string> {
       timeout: opts.timeout ?? MAX_RUN_TIMEOUT_MS,
       stopFlagFile: flagFile,
     });
+    if (!isResume) captureSessionId(result.response);
     return parseProviderOutput(provider, result.response);
   } catch (err) {
     if (isResume && err instanceof RunError && /session/i.test(err.message)) {

@@ -8,9 +8,10 @@ export type Provider = {
   modelFlag?: string; // e.g. '--model'
   promptFlag?: string; // e.g. '-p' (omit = positional)
   systemPromptFlag?: string; // e.g. '--append-system-prompt'
-  session?: { startFlag: string; resumeFlag: string };
-  output?: 'text' | 'jsonl';
+  session?: { startFlag?: string; resumeFlag: string; captureIdField?: string };
+  output?: 'text' | 'jsonl' | 'json';
   jsonlExtract?: { type: string; textField: string };
+  jsonExtract?: string; // dot-path to text field in JSON output (e.g. 'response.text')
 };
 
 // Agent

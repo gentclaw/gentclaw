@@ -21,7 +21,23 @@ const CLAUDE: Provider = {
   jsonlExtract: { type: 'assistant', textField: 'content' },
 };
 
-const registry = new Map<string, Provider>([['claude', CLAUDE]]);
+const GEMINI: Provider = {
+  name: 'Gemini CLI',
+  command: 'gemini',
+  models: {
+    flash: 'gemini-2.5-flash',
+    pro: 'gemini-2.5-pro',
+  },
+  defaultModel: 'flash',
+  baseArgs: ['--output-format', 'json'],
+  modelFlag: '-m',
+  promptFlag: '--prompt',
+  session: { resumeFlag: '--resume', captureIdField: 'session_id' },
+  output: 'json',
+  jsonExtract: 'response.text',
+};
+
+const registry = new Map<string, Provider>([['claude', CLAUDE], ['gemini', GEMINI]]);
 
 export function registerProvider(id: string, def: Provider): void {
   registry.set(id, def);
@@ -60,10 +76,10 @@ export function buildProviderArgs(def: Provider, opts: BuildOpts): string[] {
     args.push(def.modelFlag, resolved);
   }
 
-  // Session
+  // Session — startFlag is optional (Gemini auto-creates sessions)
   if (opts.sessionId && def.session) {
     const flag = opts.isResume ? def.session.resumeFlag : def.session.startFlag;
-    args.push(flag, opts.sessionId);
+    if (flag) args.push(flag, opts.sessionId);
   }
 
   // System prompt
@@ -85,8 +101,27 @@ export function buildProviderArgs(def: Provider, opts: BuildOpts): string[] {
   return args;
 }
 
+/** Extract a nested field via dot-path (e.g. 'response.text'). */
+export function getNestedField(obj: unknown, path: string): unknown {
+  let cur = obj;
+  for (const key of path.split('.')) {
+    if (cur == null || typeof cur !== 'object') return undefined;
+    cur = (cur as Record<string, unknown>)[key];
+  }
+  return cur;
+}
+
 /** Parse raw CLI output based on provider output format. */
 export function parseProviderOutput(def: Provider, raw: string): string {
+  if (def.output === 'json' && def.jsonExtract) {
+    try {
+      const obj = JSON.parse(raw);
+      const val = getNestedField(obj, def.jsonExtract);
+      if (typeof val === 'string') return val.trim();
+    } catch { /* fall through to raw */ }
+    return raw.trim();
+  }
+
   if (def.output !== 'jsonl' || !def.jsonlExtract) return raw.trim();
 
   const lines = raw.split('\n').filter(Boolean);
