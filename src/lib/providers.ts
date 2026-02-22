@@ -34,7 +34,7 @@ const GEMINI: Provider = {
   promptFlag: '--prompt',
   session: { resumeFlag: '--resume', captureIdField: 'session_id' },
   output: 'json',
-  jsonExtract: 'response.text',
+  jsonExtract: 'response',
 };
 
 const registry = new Map<string, Provider>([['claude', CLAUDE], ['gemini', GEMINI]]);

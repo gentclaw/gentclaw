@@ -150,9 +150,9 @@ describe('parseProviderOutput', () => {
     const def: Provider = {
       name: 'T', command: 't', models: {}, defaultModel: '', baseArgs: [],
       output: 'json',
-      jsonExtract: 'response.text',
+      jsonExtract: 'response',
     };
-    const raw = JSON.stringify({ response: { text: 'Hello from Gemini' }, session_id: 's1' });
+    const raw = JSON.stringify({ response: 'Hello from Gemini', session_id: 's1' });
     expect(parseProviderOutput(def, raw)).toBe('Hello from Gemini');
   });
 
