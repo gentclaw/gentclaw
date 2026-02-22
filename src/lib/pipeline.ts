@@ -6,6 +6,8 @@ import { setSessionAgent, stopFlagPath, maybeCleanupSessions } from './sessions.
 import { runHooks } from './hooks.js';
 import { HEARTBEAT_RUN_TIMEOUT_MS } from './constants.js';
 import { log } from './log.js';
+import { logInvocation } from './invocation-log.js';
+import { auditLog } from './audit.js';
 import type { InboundMsg } from './types.js';
 
 const L = log('pipeline');
@@ -16,6 +18,7 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
   const pre = await runHooks('preMessage', msg);
   if (pre.action === 'block') {
     L.info('message blocked by preMessage hook', { reason: pre.blockReason });
+    auditLog({ action: 'message', sender: msg.sender, detail: msg.messageId, status: 'blocked', reason: pre.blockReason });
     return pre.blockReason ?? 'Message blocked.';
   }
 
@@ -25,9 +28,10 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
   const route = resolveRoute(transformedMsg);
   L.info('routed', { agentId: route.agentId, routeType: route.routeType, messageId: msg.messageId });
 
+  const agents = getAgents();
+
   // Ensure session exists for all routes (enables CLI session persistence)
   if (msg.sessionKey) {
-    const agents = getAgents();
     const agentCfg = agents[route.agentId];
     if (agentCfg) {
       setSessionAgent(msg.sessionKey, route.agentId, agentCfg.provider, agentCfg.model);
@@ -41,12 +45,34 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
   }
 
   const timeout = msg.channel === 'heartbeat' ? HEARTBEAT_RUN_TIMEOUT_MS : undefined;
-  const response = await runAgent({
-    agentId: route.agentId,
-    message: route.message,
-    sessionKey: msg.sessionKey ?? msg.messageId,
-    timeout,
-  });
+  const agentCfgForLog = agents[route.agentId];
+
+  const startMs = Date.now();
+  let response: string;
+  try {
+    response = await runAgent({
+      agentId: route.agentId,
+      message: route.message,
+      sessionKey: msg.sessionKey ?? msg.messageId,
+      timeout,
+    });
+    if (agentCfgForLog) {
+      logInvocation({
+        agentId: route.agentId, provider: agentCfgForLog.provider, model: agentCfgForLog.model,
+        durationMs: Date.now() - startMs, success: true, channel: msg.channel, sender: msg.sender,
+      });
+    }
+  } catch (err) {
+    if (agentCfgForLog) {
+      logInvocation({
+        agentId: route.agentId, provider: agentCfgForLog.provider, model: agentCfgForLog.model,
+        durationMs: Date.now() - startMs, success: false,
+        errorType: err instanceof Error ? err.constructor.name : 'Unknown',
+        channel: msg.channel, sender: msg.sender,
+      });
+    }
+    throw err;
+  }
 
   // Post-message hooks (audit, transform response)
   const postMsg: InboundMsg = { ...msg, message: response };

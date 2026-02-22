@@ -9,6 +9,7 @@ import { listProviders } from './providers.js';
 import { activeTasks } from './sequencer.js';
 import { resolveCustomCommand, listCustomCommands, listSkills } from './custom-commands.js';
 import { log } from './log.js';
+import { auditLog } from './audit.js';
 
 const L = log('commands');
 
@@ -175,13 +176,16 @@ export function dispatchCommand(message: string, ctx: CmdContext): CmdResult | n
   const handler = handlers[cmdName];
   if (handler) {
     L.debug('dispatching built-in command', { command: cmdName });
-    return handler(args, ctx);
+    const result = handler(args, ctx);
+    auditLog({ action: `cmd:${cmdName}`, sender: ctx.sender, detail: args, status: 'allowed' });
+    return result;
   }
 
   // Fall through to custom commands
   const custom = resolveCustomCommand(cmdName, args);
   if (custom) {
     L.debug('dispatching custom command', { command: cmdName, agent: custom.agent });
+    auditLog({ action: `custom:${cmdName}`, sender: ctx.sender, detail: args, status: 'allowed' });
     return { response: custom.message, skipInvoke: false, agent: custom.agent };
   }
 
