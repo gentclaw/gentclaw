@@ -3,16 +3,23 @@ import { getSettings } from './config.js';
 import { log } from './log.js';
 import { checkRateLimit } from './builtins/rate-limit.js';
 import { checkContentGuard } from './builtins/content-guard.js';
+import { secretsScan } from './builtins/secrets-scan.js';
 import type { HookAction, HookDef, HookEvent, InboundMsg } from './types.js';
 
 const L = log('hooks');
 const DEFAULT_TIMEOUT = 5000;
+
+/** Safety hooks that always run, even without explicit settings config. */
+const DEFAULT_HOOKS: Partial<Record<HookEvent, HookDef[]>> = {
+  postMessage: [{ name: 'secrets-scan', builtin: 'secrets-scan' }],
+};
 
 type BuiltinFn = (msg: InboundMsg, config?: Record<string, unknown>) => HookAction;
 
 const BUILTINS: Record<string, BuiltinFn> = {
   'rate-limit': (msg, cfg) => checkRateLimit(msg, cfg as { max?: number; windowSec?: number }),
   'content-guard': (msg) => checkContentGuard(msg),
+  'secrets-scan': (msg) => secretsScan(msg),
 };
 
 /** Run a single subprocess hook. Receives JSON on stdin, parses JSON from stdout. */
@@ -69,8 +76,10 @@ export async function runHooks(
   msg: InboundMsg,
 ): Promise<{ action: 'allow' | 'block'; message: string; blockReason?: string }> {
   const settings = getSettings();
-  const hooks = settings.hooks?.[event];
-  if (!hooks?.length) return { action: 'allow', message: msg.message };
+  const userHooks = settings.hooks?.[event] ?? [];
+  const defaultHooks = DEFAULT_HOOKS[event] ?? [];
+  const hooks = [...userHooks, ...defaultHooks];
+  if (!hooks.length) return { action: 'allow', message: msg.message };
 
   let currentMessage = msg.message;
 
