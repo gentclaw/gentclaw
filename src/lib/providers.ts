@@ -19,6 +19,7 @@ const CLAUDE: Provider = {
   session: { startFlag: '--session-id', resumeFlag: '--session-id' },
   output: 'jsonl',
   jsonlExtract: { type: 'assistant', textField: 'content' },
+  tmux: true,
 };
 
 const GEMINI: Provider = {
