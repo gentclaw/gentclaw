@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync, spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { getAgents, getDefaultAgentId, getSettings, updateSettings } from './config.js';
@@ -10,6 +10,13 @@ import { resolveCustomCommand, listCustomCommands, listSkills } from './custom-c
 import { validateShellCmd } from './builtins/shell-safety.js';
 import { log } from './log.js';
 import { auditLog } from './audit.js';
+
+const PKG_VERSION: string = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(resolve(import.meta.dirname, '..', '..', 'package.json'), 'utf-8'));
+    return pkg.version ?? 'unknown';
+  } catch { return 'unknown'; }
+})();
 
 const L = log('commands');
 

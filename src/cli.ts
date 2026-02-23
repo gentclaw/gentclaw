@@ -28,6 +28,7 @@ Heartbeat:
 
 Maintenance:
   setup        Run interactive setup wizard
+  setup slack  Reconfigure Slack tokens
 
 Paths:
   home         Show GENTCLAW_HOME path
@@ -157,7 +158,8 @@ const commands: Record<string, () => void> = {
   home: () => console.log(PATHS.home),
   help: showHelp,
   setup: () => {
-    import('./setup.js').catch(err => {
+    const subcmd = process.argv[3]; // e.g. `gentclaw setup slack`
+    import('./setup.js').then(m => m.setup(subcmd)).catch(err => {
       console.error('Setup failed:', err);
       process.exit(1);
     });
