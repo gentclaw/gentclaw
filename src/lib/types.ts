@@ -1,3 +1,9 @@
+/** Token counts extracted from CLI provider output */
+export type TokenUsage = {
+  input: number;
+  output: number;
+};
+
 // Provider — declarative CLI backend definition (serializable, no functions)
 export type Provider = {
   name: string;

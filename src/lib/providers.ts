@@ -1,4 +1,4 @@
-import type { Provider } from './types.js';
+import type { Provider, TokenUsage } from './types.js';
 import { ProviderError } from './errors.js';
 import { getSettings } from './config.js';
 
@@ -142,4 +142,43 @@ export function parseProviderOutput(def: Provider, raw: string): string {
   }
 
   return parts.join('').trim() || raw.trim();
+}
+
+/** Extract token usage from raw CLI output based on provider format. Returns undefined if unavailable. */
+export function extractUsage(def: Provider, raw: string): TokenUsage | undefined {
+  if (def.output === 'jsonl') return extractJsonlUsage(raw);
+  if (def.output === 'json') return extractJsonUsage(raw);
+  return undefined;
+}
+
+/** Claude JSONL: find {"type":"result",...,"usage":{"input_tokens":N,"output_tokens":N}} */
+function extractJsonlUsage(raw: string): TokenUsage | undefined {
+  const lines = raw.split('\n').filter(Boolean);
+  for (const line of lines) {
+    try {
+      const obj = JSON.parse(line) as Record<string, unknown>;
+      if (obj['type'] === 'result' && obj['usage']) {
+        const u = obj['usage'] as Record<string, unknown>;
+        const input = typeof u['input_tokens'] === 'number' ? u['input_tokens'] : undefined;
+        const output = typeof u['output_tokens'] === 'number' ? u['output_tokens'] : undefined;
+        if (input !== undefined && output !== undefined) return { input, output };
+      }
+    } catch { /* skip non-JSON lines */ }
+  }
+  return undefined;
+}
+
+/** Gemini JSON: look for usageMetadata.promptTokenCount / candidatesTokenCount */
+function extractJsonUsage(raw: string): TokenUsage | undefined {
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    const meta = (obj['usageMetadata'] ?? obj['usage_metadata']) as Record<string, unknown> | undefined;
+    if (!meta) return undefined;
+    const input = typeof meta['promptTokenCount'] === 'number' ? meta['promptTokenCount']
+      : typeof meta['prompt_token_count'] === 'number' ? meta['prompt_token_count'] : undefined;
+    const output = typeof meta['candidatesTokenCount'] === 'number' ? meta['candidatesTokenCount']
+      : typeof meta['candidates_token_count'] === 'number' ? meta['candidates_token_count'] : undefined;
+    if (input !== undefined && output !== undefined) return { input, output };
+  } catch { /* not JSON */ }
+  return undefined;
 }

@@ -60,6 +60,23 @@ describe('logInvocation', () => {
     expect(record.sender).toBe('U123');
   });
 
+  it('includes token usage when provided', () => {
+    logInvocation({
+      agentId: 'a', provider: 'claude', model: 'sonnet', durationMs: 500, success: true,
+      tokens: { input: 150, output: 42 },
+    });
+
+    const record = JSON.parse(readFileSync(mockPaths.invocations, 'utf-8').trim());
+    expect(record.tokens).toEqual({ input: 150, output: 42 });
+  });
+
+  it('omits tokens field when not provided', () => {
+    logInvocation({ agentId: 'a', provider: 'p', model: 'm', durationMs: 100, success: true });
+
+    const record = JSON.parse(readFileSync(mockPaths.invocations, 'utf-8').trim());
+    expect(record.tokens).toBeUndefined();
+  });
+
   it('never throws on fs error', () => {
     mockPaths.invocations = '/nonexistent/readonly/inv.jsonl';
     expect(() => {

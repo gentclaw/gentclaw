@@ -3,6 +3,7 @@
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { PATHS } from './paths.js';
+import type { TokenUsage } from './types.js';
 
 export type InvocationRecord = {
   ts: number;
@@ -11,6 +12,7 @@ export type InvocationRecord = {
   model: string;
   durationMs: number;
   success: boolean;
+  tokens?: TokenUsage;
   errorType?: string;
   channel?: string;
   sender?: string;

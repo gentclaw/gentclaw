@@ -2,12 +2,13 @@ import { spawn } from 'node:child_process';
 import { existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { getProvider, buildProviderArgs, parseProviderOutput, getNestedField } from './providers.js';
+import { getProvider, buildProviderArgs, parseProviderOutput, extractUsage, getNestedField } from './providers.js';
 import { getAgents } from './config.js';
 import { getCliSessionId, setCliSessionId, stopFlagPath } from './sessions.js';
 import { RunError, errMsg } from './errors.js';
 import { MAX_RUN_TIMEOUT_MS, STOP_FLAG_POLL_MS } from './constants.js';
 import { stripAnsi } from './text.js';
+import type { TokenUsage } from './types.js';
 import { runInTmux } from './tmux.js';
 import { log } from './log.js';
 
@@ -103,8 +104,13 @@ function runCommand(
   });
 }
 
+export type RunAgentResult = {
+  text: string;
+  tokens?: TokenUsage;
+};
+
 /** Run an agent's CLI provider with the given message. */
-export async function runAgent(opts: RunOpts): Promise<string> {
+export async function runAgent(opts: RunOpts): Promise<RunAgentResult> {
   const agents = getAgents();
   const config = agents[opts.agentId];
   if (!config) throw new RunError(`Agent not found: ${opts.agentId}`);
@@ -163,19 +169,24 @@ export async function runAgent(opts: RunOpts): Promise<string> {
     return runCommand(command, cmdArgs, runOpts);
   };
 
+  const toResult = (raw: string): RunAgentResult => ({
+    text: parseProviderOutput(provider, raw),
+    tokens: extractUsage(provider, raw),
+  });
+
   const freshRun = async () => {
     const id = randomUUID();
     setCliSessionId(opts.sessionKey, id);
     const a = buildProviderArgs(provider, { ...common, sessionId: id, isResume: false });
     const r = await execCmd(provider.command, a);
     captureSessionId(r.response);
-    return parseProviderOutput(provider, r.response);
+    return toResult(r.response);
   };
 
   try {
     const result = await execCmd(provider.command, args);
     if (!isResume) captureSessionId(result.response);
-    return parseProviderOutput(provider, result.response);
+    return toResult(result.response);
   } catch (err) {
     if (isResume && err instanceof RunError && /session/i.test(err.message)) {
       L.warn('session resume failed, retrying fresh');

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getProvider, buildProviderArgs, parseProviderOutput, registerProvider, getNestedField } from '../../src/lib/providers.js';
+import { getProvider, buildProviderArgs, parseProviderOutput, extractUsage, registerProvider, getNestedField } from '../../src/lib/providers.js';
 import type { Provider } from '../../src/lib/types.js';
 
 describe('providers', () => {
@@ -173,6 +173,70 @@ describe('parseProviderOutput', () => {
     };
     const raw = JSON.stringify({ response: { text: 'hi' } });
     expect(parseProviderOutput(def, raw)).toBe(raw.trim());
+  });
+});
+
+describe('extractUsage', () => {
+  it('extracts tokens from Claude JSONL result line', () => {
+    const def: Provider = {
+      name: 'T', command: 't', models: {}, defaultModel: '', baseArgs: [],
+      output: 'jsonl', jsonlExtract: { type: 'assistant', textField: 'content' },
+    };
+    const raw = [
+      '{"type":"assistant","content":"Hello"}',
+      '{"type":"result","usage":{"input_tokens":150,"output_tokens":42}}',
+    ].join('\n');
+    expect(extractUsage(def, raw)).toEqual({ input: 150, output: 42 });
+  });
+
+  it('returns undefined when no result line in JSONL', () => {
+    const def: Provider = {
+      name: 'T', command: 't', models: {}, defaultModel: '', baseArgs: [],
+      output: 'jsonl', jsonlExtract: { type: 'assistant', textField: 'content' },
+    };
+    const raw = '{"type":"assistant","content":"Hello"}';
+    expect(extractUsage(def, raw)).toBeUndefined();
+  });
+
+  it('extracts tokens from Gemini JSON usageMetadata', () => {
+    const def: Provider = {
+      name: 'T', command: 't', models: {}, defaultModel: '', baseArgs: [],
+      output: 'json', jsonExtract: 'response',
+    };
+    const raw = JSON.stringify({
+      response: 'Hello',
+      usageMetadata: { promptTokenCount: 200, candidatesTokenCount: 80 },
+    });
+    expect(extractUsage(def, raw)).toEqual({ input: 200, output: 80 });
+  });
+
+  it('handles snake_case Gemini usage fields', () => {
+    const def: Provider = {
+      name: 'T', command: 't', models: {}, defaultModel: '', baseArgs: [],
+      output: 'json', jsonExtract: 'response',
+    };
+    const raw = JSON.stringify({
+      response: 'Hi',
+      usage_metadata: { prompt_token_count: 100, candidates_token_count: 50 },
+    });
+    expect(extractUsage(def, raw)).toEqual({ input: 100, output: 50 });
+  });
+
+  it('returns undefined for text output format', () => {
+    const def: Provider = {
+      name: 'T', command: 't', models: {}, defaultModel: '', baseArgs: [],
+      output: 'text',
+    };
+    expect(extractUsage(def, 'hello')).toBeUndefined();
+  });
+
+  it('returns undefined for JSON without usage metadata', () => {
+    const def: Provider = {
+      name: 'T', command: 't', models: {}, defaultModel: '', baseArgs: [],
+      output: 'json', jsonExtract: 'response',
+    };
+    const raw = JSON.stringify({ response: 'Hello' });
+    expect(extractUsage(def, raw)).toBeUndefined();
   });
 });
 

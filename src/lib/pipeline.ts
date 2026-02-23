@@ -50,16 +50,18 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
   const startMs = Date.now();
   let response: string;
   try {
-    response = await runAgent({
+    const result = await runAgent({
       agentId: route.agentId,
       message: route.message,
       sessionKey: msg.sessionKey ?? msg.messageId,
       timeout,
     });
+    response = result.text;
     if (agentCfgForLog) {
       logInvocation({
         agentId: route.agentId, provider: agentCfgForLog.provider, model: agentCfgForLog.model,
-        durationMs: Date.now() - startMs, success: true, channel: msg.channel, sender: msg.sender,
+        durationMs: Date.now() - startMs, success: true,
+        tokens: result.tokens, channel: msg.channel, sender: msg.sender,
       });
     }
   } catch (err) {
