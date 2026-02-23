@@ -1,9 +1,9 @@
 import { execSync } from 'node:child_process';
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { TMUX_SESSION, TMUX_POLL_MS, STOP_FLAG_POLL_MS } from './constants.js';
+import { TMUX_SESSION, TMUX_POLL_MS } from './constants.js';
 import { RunError } from './errors.js';
 import { stripAnsi } from './text.js';
 import { log } from './log.js';
