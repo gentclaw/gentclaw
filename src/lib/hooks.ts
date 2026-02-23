@@ -78,7 +78,9 @@ export async function runHooks(
   const settings = getSettings();
   const userHooks = settings.hooks?.[event] ?? [];
   const defaultHooks = DEFAULT_HOOKS[event] ?? [];
-  const hooks = [...userHooks, ...defaultHooks];
+  // Deduplicate: skip defaults already configured by user (by builtin name)
+  const userBuiltins = new Set(userHooks.filter(h => h.builtin).map(h => h.builtin));
+  const hooks = [...userHooks, ...defaultHooks.filter(h => !userBuiltins.has(h.builtin))];
   if (!hooks.length) return { action: 'allow', message: msg.message };
 
   let currentMessage = msg.message;
