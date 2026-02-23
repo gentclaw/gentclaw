@@ -17,3 +17,6 @@ export const TMUX_POLL_MS = 500; // poll for tmux command completion
 export const DEFAULT_HEARTBEAT_INTERVAL_MIN = 60;
 export const HEARTBEAT_RUN_TIMEOUT_MS = 2 * 60 * 1_000; // 2 min (shorter than regular 30 min)
 export const HEARTBEAT_FALLBACK_PROMPT = 'Quick status check: Any pending tasks? Keep response brief.';
+
+// Service
+export const SERVICE_LABEL = 'com.gentclaw.agent';

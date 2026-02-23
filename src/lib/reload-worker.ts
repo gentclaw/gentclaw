@@ -6,9 +6,9 @@
 import { execSync } from 'node:child_process';
 import { platform } from 'node:os';
 import { resolve } from 'node:path';
+import { SERVICE_LABEL as LABEL } from './constants.js';
 
 const SCRIPT_DIR = resolve(import.meta.dirname, '..', '..');
-const LABEL = 'com.gentclaw.agent';
 
 function exec(cmd: string): void {
   execSync(cmd, {

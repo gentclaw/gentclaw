@@ -3,8 +3,7 @@ import { existsSync, mkdirSync, realpathSync, unlinkSync, writeFileSync } from '
 import { resolve } from 'node:path';
 import { homedir, platform } from 'node:os';
 import { PATHS } from './paths.js';
-
-const LABEL = 'com.gentclaw.agent';
+import { SERVICE_LABEL as LABEL } from './constants.js';
 const SCRIPT_DIR = resolve(import.meta.dirname, '..', '..');
 /** Resolve stable node path — prefer brew symlink over versioned Cellar path. */
 const NODE_BIN = (() => {
