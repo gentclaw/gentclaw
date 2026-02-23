@@ -12,6 +12,8 @@ export type Provider = {
   output?: 'text' | 'jsonl' | 'json';
   jsonlExtract?: { type: string; textField: string };
   jsonExtract?: string; // dot-path to text field in JSON output (e.g. 'response.text')
+  /** Run CLI in a tmux pane instead of direct spawn — visible via `tmux attach -t gentclaw` */
+  tmux?: boolean;
 };
 
 // Agent

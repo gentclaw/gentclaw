@@ -8,6 +8,7 @@ import { getCliSessionId, setCliSessionId, stopFlagPath } from './sessions.js';
 import { RunError, errMsg } from './errors.js';
 import { MAX_RUN_TIMEOUT_MS, STOP_FLAG_POLL_MS } from './constants.js';
 import { stripAnsi } from './text.js';
+import { runInTmux } from './tmux.js';
 import { log } from './log.js';
 
 const L = log('run');
@@ -145,21 +146,34 @@ export async function runAgent(opts: RunOpts): Promise<string> {
     } catch { /* not JSON — skip capture */ }
   };
 
+  /** Execute command via spawn or tmux based on provider config. */
+  const execCmd = (command: string, cmdArgs: string[]): Promise<RunResult> => {
+    const runOpts = { cwd, timeout: opts.timeout ?? MAX_RUN_TIMEOUT_MS, stopFlagFile: flagFile };
+    if (provider.tmux) {
+      return runInTmux(command, cmdArgs, {
+        ...runOpts,
+        env: {
+          PATH: process.env.PATH || '',
+          HOME: process.env.HOME || '',
+          FORCE_COLOR: '0',
+          CLAUDE_CODE_ENTRYPOINT: 'cli',
+        },
+      });
+    }
+    return runCommand(command, cmdArgs, runOpts);
+  };
+
   const freshRun = async () => {
     const id = randomUUID();
     setCliSessionId(opts.sessionKey, id);
     const a = buildProviderArgs(provider, { ...common, sessionId: id, isResume: false });
-    const r = await runCommand(provider.command, a, { cwd, timeout: opts.timeout ?? MAX_RUN_TIMEOUT_MS, stopFlagFile: flagFile });
+    const r = await execCmd(provider.command, a);
     captureSessionId(r.response);
     return parseProviderOutput(provider, r.response);
   };
 
   try {
-    const result = await runCommand(provider.command, args, {
-      cwd,
-      timeout: opts.timeout ?? MAX_RUN_TIMEOUT_MS,
-      stopFlagFile: flagFile,
-    });
+    const result = await execCmd(provider.command, args);
     if (!isResume) captureSessionId(result.response);
     return parseProviderOutput(provider, result.response);
   } catch (err) {
