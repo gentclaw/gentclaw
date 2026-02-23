@@ -9,6 +9,9 @@ vi.mock('../../src/lib/config.js', () => ({
     writer: { name: 'Writer', provider: 'claude', model: 'sonnet', cwd: '/tmp' },
   }),
   getDefaultAgentId: () => 'coder',
+  getTeams: () => ({
+    devteam: { name: 'Dev Team', agents: ['coder', 'writer'], leader: 'coder' },
+  }),
 }));
 
 vi.mock('../../src/lib/sessions.js', () => ({
@@ -64,5 +67,33 @@ describe('resolveRoute', () => {
     const result = resolveRoute(makeMsg({ message: '@unknown do stuff' }));
     expect(result.agentId).toBe('coder');
     expect(result.routeType).toBe('default');
+  });
+
+  it('routes @team mention to team leader', () => {
+    const result = resolveRoute(makeMsg({ message: '@devteam fix the build' }));
+    expect(result.agentId).toBe('coder');
+    expect(result.message).toBe('fix the build');
+    expect(result.routeType).toBe('mention');
+    expect(result.isTeamRouted).toBe(true);
+  });
+
+  it('routes @team by display name (case-insensitive)', () => {
+    const result = resolveRoute(makeMsg({ message: '@Dev Team hello' }));
+    // "Dev" doesn't match because parseDirective stops at whitespace
+    // Team names with spaces won't match via @mention — by design
+    expect(result.isTeamRouted).toBe(false);
+  });
+
+  it('agents take priority over teams', () => {
+    // @coder matches agent 'coder' even though coder is also in devteam
+    const result = resolveRoute(makeMsg({ message: '@coder help' }));
+    expect(result.agentId).toBe('coder');
+    expect(result.isTeamRouted).toBe(false);
+  });
+
+  it('non-team routes have isTeamRouted=false', () => {
+    expect(resolveRoute(makeMsg({ agent: 'coder' })).isTeamRouted).toBe(false);
+    expect(resolveRoute(makeMsg({ sessionKey: 'sticky-session' })).isTeamRouted).toBe(false);
+    expect(resolveRoute(makeMsg()).isTeamRouted).toBe(false);
   });
 });

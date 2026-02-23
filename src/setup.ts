@@ -23,8 +23,15 @@ function ask(question: string, defaultVal?: string): Promise<string> {
   });
 }
 
+type SlackManifest = {
+  display_information: { name: string; description: string };
+  features: { bot_user: { display_name: string; always_online: boolean }; app_home: Record<string, boolean> };
+  oauth_config: { scopes: { bot: string[] } };
+  settings: { socket_mode_enabled: boolean; event_subscriptions: { bot_events: string[] } };
+};
+
 /** Slack app manifest scoped to gentclaw's requirements */
-function buildSlackManifest(): object {
+function buildSlackManifest(): SlackManifest {
   return {
     display_information: {
       name: 'gentclaw',
@@ -81,14 +88,12 @@ function showSlackInstructions(): void {
 async function promptSlackTokens(): Promise<{ botToken: string; appToken: string }> {
   const botToken = await ask('Bot Token (xoxb-...)');
   if (!botToken.startsWith('xoxb-')) {
-    console.log(`${RED}Invalid bot token — must start with xoxb-${NC}`);
-    process.exit(1);
+    throw new Error('Invalid bot token — must start with xoxb-');
   }
 
   const appToken = await ask('App Token (xapp-...)');
   if (!appToken.startsWith('xapp-')) {
-    console.log(`${RED}Invalid app token — must start with xapp-${NC}`);
-    process.exit(1);
+    throw new Error('Invalid app token — must start with xapp-');
   }
 
   return { botToken, appToken };

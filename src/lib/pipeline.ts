@@ -32,8 +32,8 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
 
   const agents = getAgents();
 
-  // Ensure session exists for all routes (enables CLI session persistence)
-  if (msg.sessionKey) {
+  // Persist sticky session — skip for team routes (team mentions are one-shot, not sticky)
+  if (msg.sessionKey && !route.isTeamRouted) {
     const agentCfg = agents[route.agentId];
     if (agentCfg) {
       setSessionAgent(msg.sessionKey, route.agentId, agentCfg.provider, agentCfg.model);

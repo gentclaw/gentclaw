@@ -2,7 +2,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { PATHS } from './paths.js';
 import { atomicWriteJson } from './fs-utils.js';
 import { ConfigError, errMsg } from './errors.js';
-import type { Settings, Agent } from './types.js';
+import type { Settings, Agent, Team } from './types.js';
 
 let cached: { settings: Settings; mtime: number } | null = null;
 
@@ -50,6 +50,11 @@ export function getAgents(): Record<string, Agent> {
     throw new ConfigError('No agents configured. Run the setup wizard or add agents to settings.json.');
   }
   return getSettings().agents!;
+}
+
+/** Get configured teams (empty record if none). */
+export function getTeams(): Record<string, Team> {
+  return getSettings().teams ?? {};
 }
 
 /** Get the default agent ID. Falls back to first configured agent. */

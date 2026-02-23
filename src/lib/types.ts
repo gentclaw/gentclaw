@@ -36,6 +36,13 @@ export type Agent = {
   };
 };
 
+// Team — named group of agents with a designated leader
+export type Team = {
+  name: string;
+  agents: string[];
+  leader: string; // must be in agents[]
+};
+
 // Custom command — user-defined slash command that routes a prompt to an agent
 export type CustomCommand = {
   description: string;
@@ -50,6 +57,7 @@ export type Settings = {
   };
   providers?: Record<string, Provider>;
   agents?: Record<string, Agent>;
+  teams?: Record<string, Team>;
   defaultAgent?: string;
   allowedSenders?: string[];
   bash?: { allowlist?: string[] };
