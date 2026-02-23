@@ -193,6 +193,7 @@ export async function startSlack(): Promise<void> {
   L.info('authenticated', { botUserId });
 
   const onEvent = async ({ event }: { event: unknown }) => {
+    if (!event || typeof event !== 'object') return;
     const ev = event as Record<string, unknown>;
     if (ev['bot_id'] || ev['subtype']) return;
     try {

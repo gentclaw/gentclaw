@@ -91,6 +91,8 @@ export function resolveRoute(msg: InboundMsg): RouteResult {
       L.debug('team-routed', { agentId: entry.leaderId, teamId: entry.teamId });
       return { agentId: entry.leaderId, message: directive.body, routeType: 'mention', teamId: entry.teamId };
     }
+
+    L.warn('unrecognized @mention, falling through', { ref: directive.agentRef });
   }
 
   // 3. Sticky session

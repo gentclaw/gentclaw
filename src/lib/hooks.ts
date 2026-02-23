@@ -55,7 +55,8 @@ async function executeHook(hook: HookDef, msg: InboundMsg): Promise<HookAction> 
       L.warn('unknown builtin hook, allowing', { builtin: hook.builtin });
       return { action: 'allow' };
     }
-    return fn(msg, hook.config);
+    const config = hook.config && typeof hook.config === 'object' ? hook.config : undefined;
+    return fn(msg, config);
   }
 
   if (hook.command) {

@@ -178,6 +178,17 @@ describe('resolveCustomCommand', () => {
     expect(result!.message).toBe('foo and foo');
   });
 
+  it('escapes $ARGUMENTS in user input to prevent recursive expansion', () => {
+    mockGetSettings.mockReturnValue({
+      commands: {
+        echo: { description: 'test', prompt: 'Echo: $ARGUMENTS' },
+      },
+    });
+    const result = resolveCustomCommand('echo', 'the token $ARGUMENTS should be literal');
+    expect(result!.message).toBe('Echo: the token \\$ARGUMENTS should be literal');
+    expect(result!.message).not.toContain('Echo: the token Echo:');
+  });
+
   it('falls back to skill when no settings command matches', () => {
     mockGetSettings.mockReturnValue({});
     mockReaddirSync.mockReturnValue(['deploy']);

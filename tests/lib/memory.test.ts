@@ -8,7 +8,7 @@ vi.mock('../../src/lib/paths.js', () => ({
 }));
 
 import {
-  MEMORY_FILE, SHARED_MEMORY_FILE, MEMORY_MAX_LINES, ENTRY_MAX_LINES,
+  MEMORY_FILE, SHARED_MEMORY_FILE, MEMORY_MAX_LINES, ENTRY_MAX_LINES, ENTRY_MAX_BYTES,
   readMemoryFile, appendMemoryFile,
   readAgentMemory, clearAgentMemory,
   readSharedMemory, appendSharedMemory, clearSharedMemory,
@@ -125,6 +125,20 @@ describe('per-entry size cap', () => {
 
     const written = vi.mocked(fs.writeFileSync).mock.calls[0][1] as string;
     expect(written).not.toContain('…(truncated)');
+  });
+
+  it('truncates entries exceeding ENTRY_MAX_BYTES', () => {
+    vi.mocked(fs.readFileSync).mockImplementation(() => { throw new Error('ENOENT'); });
+    vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
+    vi.mocked(fs.renameSync).mockImplementation(() => undefined);
+    vi.mocked(fs.mkdirSync).mockImplementation(() => undefined as any);
+
+    const huge = 'x'.repeat(ENTRY_MAX_BYTES + 1000);
+    appendMemoryFile('/dir', 'memory.md', huge);
+
+    const written = vi.mocked(fs.writeFileSync).mock.calls[0][1] as string;
+    expect(Buffer.byteLength(written, 'utf8')).toBeLessThan(ENTRY_MAX_BYTES + 200); // timestamp overhead
+    expect(written).toContain('…(truncated)');
   });
 });
 

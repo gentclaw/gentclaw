@@ -8,6 +8,8 @@ export const MEMORY_FILE = 'memory.md';
 export const SHARED_MEMORY_FILE = 'shared-memory.md';
 export const MEMORY_MAX_LINES = 200;
 export const ENTRY_MAX_LINES = 20;
+/** Max bytes per memory entry — prevents DOS via tag injection */
+export const ENTRY_MAX_BYTES = 4096;
 
 const ENTRY_SEPARATOR_RE = /(?=^<!-- \d{4}-)/m;
 
@@ -35,10 +37,17 @@ function trimEntries(content: string): string {
   return entries.join('');
 }
 
-/** Cap a single entry at ENTRY_MAX_LINES to prevent budget exhaustion */
+/** Cap a single entry at ENTRY_MAX_LINES / ENTRY_MAX_BYTES to prevent budget exhaustion */
 function capEntry(content: string): string {
-  const lines = content.split('\n');
-  if (lines.length <= ENTRY_MAX_LINES) return content;
+  let capped = content;
+  if (Buffer.byteLength(capped, 'utf8') > ENTRY_MAX_BYTES) {
+    while (Buffer.byteLength(capped, 'utf8') > ENTRY_MAX_BYTES && capped.length > 0) {
+      capped = capped.slice(0, capped.length - 100);
+    }
+    capped += '\n…(truncated)';
+  }
+  const lines = capped.split('\n');
+  if (lines.length <= ENTRY_MAX_LINES) return capped;
   return lines.slice(0, ENTRY_MAX_LINES).join('\n') + '\n…(truncated)';
 }
 

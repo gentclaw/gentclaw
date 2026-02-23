@@ -58,7 +58,10 @@ export function getCliSessionId(sessionKey: string): string | undefined {
 /** Set the CLI session ID for a session. */
 export function setCliSessionId(sessionKey: string, cliSessionId: string): void {
   const existing = readSession(sessionKey);
-  if (!existing) return;
+  if (!existing) {
+    L.warn('setCliSessionId: session not found, ignoring', { sessionKey });
+    return;
+  }
   writeSession({ ...existing, cliSessionId, lastAccessAt: Date.now() });
 }
 

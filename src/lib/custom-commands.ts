@@ -14,6 +14,12 @@ type CustomCmdResult = {
   agent?: string;
 };
 
+/** Safely interpolate $ARGUMENTS — neutralize the token in user input to prevent recursive expansion */
+function interpolateArgs(template: string, args: string): string {
+  const safe = args.trim().replaceAll('$ARGUMENTS', '\\$ARGUMENTS');
+  return template.replaceAll('$ARGUMENTS', safe);
+}
+
 /** Parse YAML-like frontmatter from SKILL.md content. */
 export function parseFrontmatter(content: string): { meta: Record<string, string>; body: string } {
   const meta: Record<string, string> = {};
@@ -72,7 +78,7 @@ export function resolveCustomCommand(
   const cmds = settings.commands;
   const def = cmds?.[name];
   if (def) {
-    const message = def.prompt.replaceAll('$ARGUMENTS', args.trim());
+    const message = interpolateArgs(def.prompt, args);
     return { message, agent: def.agent };
   }
 
@@ -80,7 +86,7 @@ export function resolveCustomCommand(
   const skills = discoverSkills();
   const skill = skills[name];
   if (skill) {
-    const message = skill.prompt.replaceAll('$ARGUMENTS', args.trim());
+    const message = interpolateArgs(skill.prompt, args);
     return { message, agent: skill.agent };
   }
 

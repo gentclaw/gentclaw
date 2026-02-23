@@ -8,6 +8,15 @@ const DEFAULT_CONFIG: Config = { max: 10, windowSec: 60 };
 /** Per-sender sliding window. Key = senderId. */
 const windows = new Map<string, Window>();
 
+/** Evict stale senders with no recent activity. Runs inline during check. */
+function evictStaleSenders(cutoff: number): void {
+  for (const [key, win] of windows) {
+    if (win.timestamps.length === 0 || win.timestamps[win.timestamps.length - 1]! <= cutoff) {
+      windows.delete(key);
+    }
+  }
+}
+
 /** Evict expired timestamps and check if sender is over limit. */
 export function checkRateLimit(
   msg: InboundMsg,
@@ -17,6 +26,9 @@ export function checkRateLimit(
   const now = Date.now();
   const cutoff = now - windowSec * 1000;
   const sender = msg.sender;
+
+  // Periodically evict stale senders to prevent unbounded map growth
+  if (windows.size > 100) evictStaleSenders(cutoff);
 
   let win = windows.get(sender);
   if (!win) {
