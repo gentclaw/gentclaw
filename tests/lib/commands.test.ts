@@ -35,8 +35,23 @@ vi.mock('../../src/lib/providers.js', () => ({
   },
 }));
 
-vi.mock('../../src/lib/sequencer.js', () => ({
-  activeTasks: () => 0,
+vi.mock('../../src/lib/tracker.js', () => ({
+  getStatusSnapshot: () => ({
+    agents: {
+      coder: {
+        agentId: 'coder',
+        current: { agentId: 'coder', sessionKey: 's1', messagePreview: 'fix bug', startedAt: Date.now() - 5000 },
+        recentHistory: [],
+      },
+      writer: {
+        agentId: 'writer',
+        current: null,
+        recentHistory: [{ agentId: 'writer', sessionKey: 's0', messagePreview: 'write docs', startedAt: 0, finishedAt: Date.now() - 10000, durationMs: 3000, success: true }],
+      },
+    },
+    totalQueuedTasks: 1,
+    timestamp: Date.now(),
+  }),
 }));
 
 const mockResolveCustomCommand = vi.fn();
@@ -75,11 +90,15 @@ describe('dispatchCommand', () => {
     expect(result!.response).toContain('/help');
   });
 
-  it('handles /status', () => {
+  it('handles /status with per-agent info', () => {
     const result = dispatchCommand('/status', ctx);
     expect(result).not.toBeNull();
     expect(result!.skipInvoke).toBe(true);
     expect(result!.response).toContain('Agents:');
+    expect(result!.response).toContain('*coder* — busy');
+    expect(result!.response).toContain('fix bug');
+    expect(result!.response).toContain('*writer* — idle');
+    expect(result!.response).toContain('last: ok');
   });
 
   it('handles /agent without args (list)', () => {

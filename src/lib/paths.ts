@@ -12,6 +12,7 @@ export const PATHS = {
   flags: resolve(home, 'flags'),
   invocations: resolve(home, 'logs', 'invocations.jsonl'),
   audit: resolve(home, 'logs', 'audit.jsonl'),
+  status: resolve(home, 'status.json'),
 } as const;
 
 /** All directories that must exist for the system to function. */

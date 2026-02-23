@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { getSettings, getAgents, getDefaultAgentId } from './lib/config.js';
 import { listProviders } from './lib/providers.js';
 import { PATHS } from './lib/paths.js';
@@ -64,6 +64,35 @@ function showStatus(): void {
   const hbAgents = Object.entries(agents).filter(([, a]) => a.heartbeat?.enabled);
   if (hbAgents.length > 0) {
     console.log(`Heartbeat: ${hbAgents.map(([id, a]) => `${id} (${a.heartbeat?.intervalMinutes ?? DEFAULT_HEARTBEAT_INTERVAL_MIN}m)`).join(', ')}`);
+  }
+
+  if (!existsSync(PATHS.status)) {
+    console.log('\nNo runtime data (daemon not running?)');
+    return;
+  }
+
+  try {
+    const snapshot = JSON.parse(readFileSync(PATHS.status, 'utf-8'));
+    const staleS = Math.round((Date.now() - snapshot.timestamp) / 1000);
+    console.log(`\nRuntime (${staleS}s ago):`);
+    console.log(`Queued tasks: ${snapshot.totalQueuedTasks}`);
+
+    for (const [agentId, activity] of Object.entries(snapshot.agents) as [string, { current: { startedAt: number; messagePreview: string } | null; recentHistory: { success: boolean; durationMs: number; finishedAt: number }[] }][]) {
+      if (activity.current) {
+        const elapsed = Math.round((Date.now() - activity.current.startedAt) / 1000);
+        console.log(`  ${agentId}: busy (${elapsed}s) — ${activity.current.messagePreview}`);
+      } else {
+        console.log(`  ${agentId}: idle`);
+      }
+      const last = activity.recentHistory[0];
+      if (last) {
+        const ago = Math.round((Date.now() - last.finishedAt) / 1000);
+        const status = last.success ? 'ok' : 'error';
+        console.log(`    last: ${status} (${Math.round(last.durationMs / 1000)}s, ${ago}s ago)`);
+      }
+    }
+  } catch {
+    console.log('\nFailed to read runtime data');
   }
 }
 

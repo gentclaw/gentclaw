@@ -8,6 +8,7 @@ import { HEARTBEAT_RUN_TIMEOUT_MS } from './constants.js';
 import { log } from './log.js';
 import { logInvocation } from './invocation-log.js';
 import { auditLog } from './audit.js';
+import { trackStart, trackFinish } from './tracker.js';
 import type { InboundMsg } from './types.js';
 
 const L = log('pipeline');
@@ -45,18 +46,20 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
   }
 
   const timeout = msg.channel === 'heartbeat' ? HEARTBEAT_RUN_TIMEOUT_MS : undefined;
+  const sk = msg.sessionKey ?? msg.messageId;
   const agentCfgForLog = agents[route.agentId];
-
   const startMs = Date.now();
-  let response: string;
+
+  trackStart(route.agentId, sk, msg.message);
+  let success = true;
   try {
     const result = await runAgent({
       agentId: route.agentId,
       message: route.message,
-      sessionKey: msg.sessionKey ?? msg.messageId,
+      sessionKey: sk,
       timeout,
     });
-    response = result.text;
+
     if (agentCfgForLog) {
       logInvocation({
         agentId: route.agentId, provider: agentCfgForLog.provider, model: agentCfgForLog.model,
@@ -64,7 +67,15 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
         tokens: result.tokens, channel: msg.channel, sender: msg.sender,
       });
     }
+
+    // Post-message hooks (audit, transform response)
+    const postMsg: InboundMsg = { ...msg, message: result.text };
+    const post = await runHooks('postMessage', postMsg);
+
+    maybeCleanupSessions();
+    return post.action === 'block' ? (post.blockReason ?? 'Response blocked.') : post.message;
   } catch (err) {
+    success = false;
     if (agentCfgForLog) {
       logInvocation({
         agentId: route.agentId, provider: agentCfgForLog.provider, model: agentCfgForLog.model,
@@ -74,12 +85,7 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
       });
     }
     throw err;
+  } finally {
+    trackFinish(sk, success);
   }
-
-  // Post-message hooks (audit, transform response)
-  const postMsg: InboundMsg = { ...msg, message: response };
-  const post = await runHooks('postMessage', postMsg);
-
-  maybeCleanupSessions();
-  return post.action === 'block' ? (post.blockReason ?? 'Response blocked.') : post.message;
 }

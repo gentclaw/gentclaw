@@ -5,7 +5,7 @@ import { getAgents, getDefaultAgentId, getSettings, updateSettings } from './con
 import { deleteSession } from './sessions.js';
 import { stopFlagPath } from './sessions.js';
 import { listProviders, getProvider } from './providers.js';
-import { activeTasks } from './sequencer.js';
+import { getStatusSnapshot } from './tracker.js';
 import { resolveCustomCommand, listCustomCommands, listSkills } from './custom-commands.js';
 import { validateShellCmd } from './builtins/shell-safety.js';
 import { log } from './log.js';
@@ -199,17 +199,31 @@ const handlers: Record<string, CmdHandler> = {
     const agentCount = Object.keys(agents).length;
     const defaultId = getDefaultAgentId();
     const providers = listProviders();
-    const active = activeTasks();
+    const snapshot = getStatusSnapshot();
 
-    return {
-      response: [
-        `*Status:*`,
-        `Agents: ${agentCount} (default: ${defaultId})`,
-        `Providers: ${providers.join(', ')}`,
-        `Active tasks: ${active}`,
-      ].join('\n'),
-      skipInvoke: true,
-    };
+    const lines = [
+      `*Status:*`,
+      `Agents: ${agentCount} (default: ${defaultId})`,
+      `Providers: ${providers.join(', ')}`,
+      `Active tasks: ${snapshot.totalQueuedTasks}`,
+    ];
+
+    for (const [agentId, activity] of Object.entries(snapshot.agents)) {
+      if (activity.current) {
+        const elapsed = Math.round((Date.now() - activity.current.startedAt) / 1000);
+        lines.push(`*${agentId}* — busy (${elapsed}s): ${activity.current.messagePreview}`);
+      } else {
+        lines.push(`*${agentId}* — idle`);
+      }
+      const last = activity.recentHistory[0];
+      if (last) {
+        const ago = Math.round((Date.now() - last.finishedAt) / 1000);
+        const status = last.success ? 'ok' : 'error';
+        lines.push(`  last: ${status} (${Math.round(last.durationMs / 1000)}s, ${ago}s ago)`);
+      }
+    }
+
+    return { response: lines.join('\n'), skipInvoke: true };
   },
 
   model: (args) => {
