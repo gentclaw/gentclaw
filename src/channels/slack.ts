@@ -12,9 +12,24 @@ import { startHeartbeat, stopHeartbeat } from '../lib/heartbeat.js';
 import type { InboundMsg } from '../lib/types.js';
 
 const L = log('slack');
+const REACT_HOLD_MS = 3_000;
 
 let app: App;
 let botUserId: string | undefined;
+
+/** Add a Slack reaction (fire-and-forget). */
+function addReaction(channel: string, timestamp: string, name: string): void {
+  app.client.reactions.add({ channel, timestamp, name }).catch(err =>
+    L.warn('reaction.add failed', { name, error: errMsg(err) }),
+  );
+}
+
+/** Remove a Slack reaction (fire-and-forget). */
+function removeReaction(channel: string, timestamp: string, name: string): void {
+  app.client.reactions.remove({ channel, timestamp, name }).catch(err =>
+    L.warn('reaction.remove failed', { name, error: errMsg(err) }),
+  );
+}
 
 /** Compute session key from Slack thread context. */
 function sessionKey(channelId: string, threadTs: string | undefined, messageTs: string): string {
@@ -87,14 +102,23 @@ async function handleEvent(
     channel: 'slack',
   };
 
+  // Signal dispatch
+  addReaction(channelId, ts, 'eyes');
+
   // Process with per-session serialization
   await runSequential(sk, async () => {
+    let outcome: 'white_check_mark' | 'x' = 'white_check_mark';
     try {
       const response = await processMessage(msg);
       await reply(channelId, replyTs, response);
     } catch (err) {
+      outcome = 'x';
       L.error('processing error', { sessionKey: sk, error: errMsg(err) });
       await reply(channelId, replyTs, `Error: ${errMsg(err)}`);
+    } finally {
+      removeReaction(channelId, ts, 'eyes');
+      addReaction(channelId, ts, outcome);
+      setTimeout(() => removeReaction(channelId, ts, outcome), REACT_HOLD_MS);
     }
   });
 }
