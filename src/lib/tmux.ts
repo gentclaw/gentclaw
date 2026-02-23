@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -10,12 +10,15 @@ import { log } from './log.js';
 
 const L = log('tmux');
 
-function tmux(cmd: string): string {
+const tmuxEnv = { PATH: process.env.PATH || '', HOME: process.env.HOME || '' };
+
+/** Run tmux with array args — no shell interpretation, no escaping needed. */
+function tmux(...args: string[]): string {
   try {
-    return execSync(`tmux ${cmd}`, {
+    return execFileSync('tmux', args, {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { PATH: process.env.PATH || '', HOME: process.env.HOME || '' },
+      env: tmuxEnv,
     }).trim();
   } catch {
     return '';
@@ -24,7 +27,7 @@ function tmux(cmd: string): string {
 
 function sessionExists(): boolean {
   try {
-    execSync(`tmux has-session -t ${TMUX_SESSION}`, { stdio: 'ignore' });
+    execFileSync('tmux', ['has-session', '-t', TMUX_SESSION], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -33,7 +36,7 @@ function sessionExists(): boolean {
 
 function ensureSession(): void {
   if (!sessionExists()) {
-    tmux(`new-session -d -s ${TMUX_SESSION} -x 200 -y 50`);
+    tmux('new-session', '-d', '-s', TMUX_SESSION, '-x', '200', '-y', '50');
     L.info('created tmux session', { session: TMUX_SESSION });
   }
 }
@@ -64,15 +67,18 @@ export async function runInTmux(
   const winName = `gent-${id}`;
 
   // Build shell command: run CLI, capture stdout+stderr, write exit code
+  // shellEscape needed here because this string is interpreted by tmux's shell
   const shellCmd = [cmd, ...args.map(shellEscape)].join(' ');
   const wrapped = `cd ${shellEscape(opts.cwd)} && ${shellCmd} > ${shellEscape(outFile)} 2>&1; echo $? > ${shellEscape(exitFile)}`;
 
-  // Pass env vars via -e flags
-  const envFlags = Object.entries(opts.env ?? {})
-    .map(([k, v]) => `-e ${k}=${shellEscape(v)}`)
-    .join(' ');
+  // Build tmux new-window args array (no shell interpretation — execFileSync)
+  const tmuxArgs = ['new-window', '-d', '-t', TMUX_SESSION, '-n', winName];
+  for (const [k, v] of Object.entries(opts.env ?? {})) {
+    tmuxArgs.push('-e', `${k}=${v}`);
+  }
+  tmuxArgs.push(wrapped);
 
-  tmux(`new-window -d -t ${TMUX_SESSION} -n ${winName} ${envFlags} ${shellEscape(wrapped)}`);
+  tmux(...tmuxArgs);
   L.info('tmux run started', { winName, cmd, args: args.slice(0, 4) });
 
   // Poll for completion or stop/timeout
@@ -85,7 +91,7 @@ export async function runInTmux(
       if (existsSync(opts.stopFlagFile)) {
         L.info('stop flag detected, killing tmux window');
         try { unlinkSync(opts.stopFlagFile); } catch { /* ignore */ }
-        tmux(`kill-window -t ${TMUX_SESSION}:${winName}`);
+        tmux('kill-window', '-t', `${TMUX_SESSION}:${winName}`);
         stopped = true;
         clearInterval(poll);
         resolve();
@@ -95,7 +101,7 @@ export async function runInTmux(
       // Check timeout
       if (Date.now() > deadline) {
         L.warn('tmux run timeout, killing window');
-        tmux(`kill-window -t ${TMUX_SESSION}:${winName}`);
+        tmux('kill-window', '-t', `${TMUX_SESSION}:${winName}`);
         clearInterval(poll);
         reject(new RunError('Run timed out', 124));
         return;
