@@ -41,9 +41,9 @@ function trimEntries(content: string): string {
 function capEntry(content: string): string {
   let capped = content;
   if (Buffer.byteLength(capped, 'utf8') > ENTRY_MAX_BYTES) {
-    while (Buffer.byteLength(capped, 'utf8') > ENTRY_MAX_BYTES && capped.length > 0) {
-      capped = capped.slice(0, capped.length - 100);
-    }
+    // Estimate char count from byte ratio, then trim conservatively
+    const ratio = capped.length / Buffer.byteLength(capped, 'utf8');
+    capped = capped.slice(0, Math.floor(ENTRY_MAX_BYTES * ratio));
     capped += '\n…(truncated)';
   }
   const lines = capped.split('\n');
