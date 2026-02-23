@@ -1,8 +1,6 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
-import { platform } from 'node:os';
 import { getAgents, getDefaultAgentId, getSettings, updateSettings } from './config.js';
 import { deleteSession } from './sessions.js';
 import { stopFlagPath } from './sessions.js';
@@ -293,7 +291,6 @@ const handlers: Record<string, CmdHandler> = {
         timeout: 10_000,
         maxBuffer: 100_000,
       });
-      auditLog({ action: 'cmd:bash', sender: ctx.sender, detail: cmd, status: 'allowed' });
       const trimmed = output.trim();
       return { response: trimmed ? `\`\`\`\n${trimmed}\n\`\`\`` : '(no output)', skipInvoke: true };
     } catch (err) {
