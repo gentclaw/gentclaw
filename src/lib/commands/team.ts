@@ -3,17 +3,7 @@
 import { getAgents, getSettings, getTeams, updateSettings } from '../config.js';
 import { validateTeam } from '../team.js';
 import { auditLog } from '../audit.js';
-
-type CmdResult = {
-  response: string;
-  skipInvoke: boolean;
-  agent?: string;
-};
-
-type CmdContext = {
-  sessionKey: string;
-  sender: string;
-};
+import type { CmdResult, CmdContext } from '../types.js';
 
 /** Parse "<team> <agent>" args with @-prefix stripping and lowercasing */
 function parseTeamAgentArgs(args: string): { teamId: string; agentId: string } | null {

@@ -12,22 +12,12 @@ import { readAgentMemory, readSharedMemory, clearAgentMemory, clearSharedMemory 
 import { dispatchTeamCommand, teamList } from './commands/team.js';
 import { log } from './log.js';
 import { auditLog } from './audit.js';
+import type { CmdResult, CmdContext } from './types.js';
 
 const L = log('commands');
 
 /** Repo root — two levels up from dist/lib/ */
 const SCRIPT_DIR = resolve(import.meta.dirname, '..', '..');
-
-type CmdResult = {
-  response: string;
-  skipInvoke: boolean; // true = don't send to agent, respond directly
-  agent?: string; // override agent routing
-};
-
-type CmdContext = {
-  sessionKey: string;
-  sender: string;
-};
 
 type CmdHandler = (args: string, ctx: CmdContext) => CmdResult;
 

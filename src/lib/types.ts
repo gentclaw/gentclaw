@@ -97,6 +97,18 @@ export type HookDef = {
   config?: Record<string, unknown>;
 };
 
+// Command dispatcher
+export type CmdResult = {
+  response: string;
+  skipInvoke: boolean; // true = don't send to agent, respond directly
+  agent?: string; // override agent routing
+};
+
+export type CmdContext = {
+  sessionKey: string;
+  sender: string;
+};
+
 // Session
 export type Session = {
   sessionKey: string;
