@@ -52,6 +52,7 @@ export type Settings = {
   agents?: Record<string, Agent>;
   defaultAgent?: string;
   allowedSenders?: string[];
+  bash?: { allowlist?: string[] };
   devMode?: boolean;
   logging?: { verbose?: boolean };
   hooks?: Partial<Record<HookEvent, HookDef[]>>;

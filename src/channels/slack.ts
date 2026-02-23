@@ -11,6 +11,8 @@ import { errMsg, ConfigError } from '../lib/errors.js';
 import { startHeartbeat, stopHeartbeat } from '../lib/heartbeat.js';
 import type { InboundMsg } from '../lib/types.js';
 
+const MAX_FILE_SIZE = 100_000; // 100KB — skip large files
+
 const L = log('slack');
 const REACT_HOLD_MS = 3_000;
 
@@ -29,6 +31,35 @@ function removeReaction(channel: string, timestamp: string, name: string): void 
   app.client.reactions.remove({ channel, timestamp, name }).catch(err =>
     L.warn('reaction.remove failed', { name, error: errMsg(err) }),
   );
+}
+
+/** Download text content from Slack file attachments. Returns file contents appended to message. */
+async function downloadAttachments(files: unknown[], botToken: string): Promise<string> {
+  const parts: string[] = [];
+  for (const f of files) {
+    const file = f as Record<string, unknown>;
+    const name = file['name'] as string || 'unnamed';
+    const size = file['size'] as number || 0;
+    const url = file['url_private'] as string;
+
+    if (!url || size > MAX_FILE_SIZE) {
+      parts.push(`[file: ${name} — skipped (${size > MAX_FILE_SIZE ? 'too large' : 'no url'})]`);
+      continue;
+    }
+
+    try {
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${botToken}` } });
+      if (!resp.ok) {
+        parts.push(`[file: ${name} — download failed: ${resp.status}]`);
+        continue;
+      }
+      const text = await resp.text();
+      parts.push(`--- file: ${name} ---\n${text}\n--- end file ---`);
+    } catch (err) {
+      parts.push(`[file: ${name} — error: ${errMsg(err)}]`);
+    }
+  }
+  return parts.join('\n');
 }
 
 /** Compute session key from Slack thread context. */
@@ -68,15 +99,25 @@ async function handleEvent(
   channelId: string,
   ts: string,
   threadTs: string | undefined,
+  files?: unknown[],
 ): Promise<void> {
-  if (!text || !userId) return;
+  if (!userId) return;
   if (!isAllowed(userId)) return;
 
   // Strip bot mention from text if present
-  let cleanText = text;
+  let cleanText = text || '';
   if (botUserId) {
-    cleanText = text.replace(new RegExp(`<@${botUserId}>\\s*`, 'g'), '').trim();
+    cleanText = cleanText.replace(new RegExp(`<@${botUserId}>\\s*`, 'g'), '').trim();
   }
+
+  // Download file attachments and append to message
+  if (files && files.length > 0) {
+    const settings = getSettings();
+    const botToken = settings.channels?.slack?.botToken ?? process.env['SLACK_BOT_TOKEN'] ?? '';
+    const fileContent = await downloadAttachments(files, botToken);
+    if (fileContent) cleanText = cleanText ? `${cleanText}\n\n${fileContent}` : fileContent;
+  }
+
   if (!cleanText) return;
 
   const sk = sessionKey(channelId, threadTs, ts);
@@ -161,6 +202,7 @@ export async function startSlack(): Promise<void> {
         ev['channel'] as string,
         ev['ts'] as string,
         ev['thread_ts'] as string | undefined,
+        ev['files'] as unknown[] | undefined,
       );
     } catch (err) {
       L.error('event handler crash', { error: errMsg(err) });

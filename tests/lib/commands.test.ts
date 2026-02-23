@@ -16,6 +16,10 @@ vi.mock('../../src/lib/config.js', () => ({
 
 vi.mock('node:child_process', () => ({
   spawn: vi.fn(() => ({ unref: vi.fn() })),
+  execFileSync: vi.fn((cmd: string, args: string[]) => {
+    if (cmd === 'echo') return (args as string[]).join(' ') + '\n';
+    return '';
+  }),
 }));
 
 vi.mock('../../src/lib/sessions.js', () => ({
@@ -25,6 +29,10 @@ vi.mock('../../src/lib/sessions.js', () => ({
 
 vi.mock('../../src/lib/providers.js', () => ({
   listProviders: () => ['claude'],
+  getProvider: (id: string) => {
+    if (id === 'claude') return { name: 'Claude', defaultModel: 'sonnet' };
+    throw new Error(`Unknown provider: ${id}`);
+  },
 }));
 
 vi.mock('../../src/lib/sequencer.js', () => ({
@@ -164,5 +172,82 @@ describe('dispatchCommand', () => {
     const result = dispatchCommand('/help', ctx);
     expect(result!.response).toContain('*Custom:*');
     expect(result!.response).toContain('*Skills:*');
+  });
+
+  // /bash command
+  it('handles /bash with no args', () => {
+    const result = dispatchCommand('/bash', ctx);
+    expect(result!.skipInvoke).toBe(true);
+    expect(result!.response).toContain('Usage');
+  });
+
+  it('handles /bash with safe command', () => {
+    const result = dispatchCommand('/bash echo hello', ctx);
+    expect(result!.skipInvoke).toBe(true);
+    expect(result!.response).toContain('hello');
+  });
+
+  it('handles /shell alias', () => {
+    const result = dispatchCommand('/shell echo test', ctx);
+    expect(result!.skipInvoke).toBe(true);
+    expect(result!.response).toContain('test');
+  });
+
+  it('blocks unsafe bash commands', () => {
+    const result = dispatchCommand('/bash rm -rf /', ctx);
+    expect(result!.skipInvoke).toBe(true);
+    expect(result!.response).toContain('Denied');
+  });
+
+  it('blocks bash pipe injection', () => {
+    const result = dispatchCommand('/bash echo hi | cat', ctx);
+    expect(result!.response).toContain('Denied');
+  });
+
+  // /agent subcommands
+  it('handles /agent show with valid id', () => {
+    const result = dispatchCommand('/agent show coder', ctx);
+    expect(result!.response).toContain('coder');
+    expect(result!.response).toContain('Coder');
+    expect(result!.response).toContain('claude/sonnet');
+  });
+
+  it('handles /agent show with invalid id', () => {
+    const result = dispatchCommand('/agent show nonexistent', ctx);
+    expect(result!.response).toContain('not found');
+  });
+
+  it('handles /agent add with valid args', () => {
+    const result = dispatchCommand('/agent add helper Helper claude haiku', ctx);
+    expect(result!.response).toContain("Agent 'helper' created");
+  });
+
+  it('handles /agent add with missing args', () => {
+    const result = dispatchCommand('/agent add foo', ctx);
+    expect(result!.response).toContain('Usage');
+  });
+
+  it('handles /agent remove without --force (confirmation)', () => {
+    const result = dispatchCommand('/agent remove coder', ctx);
+    expect(result!.response).toContain('--force');
+  });
+
+  it('handles /agent remove with --force', () => {
+    const result = dispatchCommand('/agent remove coder --force', ctx);
+    expect(result!.response).toContain('removed');
+  });
+
+  it('handles /agent provider show', () => {
+    const result = dispatchCommand('/agent provider coder', ctx);
+    expect(result!.response).toContain('claude');
+  });
+
+  it('shows /bash in /help', () => {
+    mockListCustomCommands.mockReturnValue({});
+    mockListSkills.mockReturnValue({});
+    const result = dispatchCommand('/help', ctx);
+    expect(result!.response).toContain('/bash');
+    expect(result!.response).toContain('/agent add');
+    expect(result!.response).toContain('/agent remove');
   });
 });

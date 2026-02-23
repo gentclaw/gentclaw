@@ -1,13 +1,15 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { platform } from 'node:os';
 import { getAgents, getDefaultAgentId, getSettings, updateSettings } from './config.js';
 import { deleteSession } from './sessions.js';
 import { stopFlagPath } from './sessions.js';
-import { listProviders } from './providers.js';
+import { listProviders, getProvider } from './providers.js';
 import { activeTasks } from './sequencer.js';
 import { resolveCustomCommand, listCustomCommands, listSkills } from './custom-commands.js';
+import { validateShellCmd } from './builtins/shell-safety.js';
 import { log } from './log.js';
 import { auditLog } from './audit.js';
 
@@ -38,14 +40,134 @@ function formatAgentList(): string {
   return `*Agents:*\n${lines.join('\n')}`;
 }
 
+/** /agent show <id> */
+function agentShow(args: string): CmdResult {
+  const id = args.trim().toLowerCase();
+  if (!id) return { response: 'Usage: `/agent show <id>`', skipInvoke: true };
+
+  const agents = getAgents();
+  const agent = agents[id];
+  if (!agent) return { response: `Agent '${id}' not found.`, skipInvoke: true };
+
+  const defaultId = getDefaultAgentId();
+  const lines = [
+    `*${id}* — ${agent.name}`,
+    `Provider: ${agent.provider}/${agent.model}`,
+    `Directory: ${agent.cwd}`,
+  ];
+  if (agent.systemPrompt) lines.push('Has custom system prompt');
+  if (defaultId === id) lines.push('(default agent)');
+  return { response: lines.join('\n'), skipInvoke: true };
+}
+
+/** /agent add <id> <name> <provider> [model] */
+function agentAdd(args: string, ctx: CmdContext): CmdResult {
+  const parts = args.split(/\s+/);
+  if (parts.length < 3) {
+    return { response: 'Usage: `/agent add <id> <name> <provider> [model]`', skipInvoke: true };
+  }
+
+  const [rawId, name, providerId, ...rest] = parts;
+  const id = rawId!.replace(/^@/, '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  if (!id) return { response: 'Invalid agent ID.', skipInvoke: true };
+
+  const settings = getSettings();
+  if (settings.agents?.[id]) {
+    return { response: `Agent '${id}' already exists.`, skipInvoke: true };
+  }
+
+  let providerDef;
+  try { providerDef = getProvider(providerId!); } catch {
+    return { response: `Unknown provider: ${providerId}. Available: ${listProviders().join(', ')}`, skipInvoke: true };
+  }
+
+  const model = rest[0] || providerDef.defaultModel;
+  const cwd = process.cwd();
+
+  updateSettings(s => ({
+    ...s,
+    agents: { ...s.agents, [id]: { name: name!, provider: providerId!, model, cwd } },
+    defaultAgent: s.defaultAgent || id,
+  }));
+
+  auditLog({ action: 'cmd:agent-add', sender: ctx.sender, detail: args, status: 'allowed' });
+  return { response: `Agent '${id}' created (${providerId}/${model}).`, skipInvoke: true };
+}
+
+/** /agent remove <id> [--force] */
+function agentRemove(args: string, ctx: CmdContext): CmdResult {
+  const hasForce = /--force\b/.test(args);
+  const cleanArgs = args.replace(/--force\s*/g, '').trim();
+  const id = cleanArgs.replace(/^@/, '').toLowerCase();
+  if (!id) return { response: 'Usage: `/agent remove <id> --force`', skipInvoke: true };
+
+  const agents = getAgents();
+  if (!agents[id]) return { response: `Agent '${id}' not found.`, skipInvoke: true };
+
+  if (!hasForce) {
+    return { response: `Remove '${id}' (${agents[id]!.name})?\nUse \`/agent remove ${id} --force\` to confirm.`, skipInvoke: true };
+  }
+
+  const settings = getSettings();
+  const wasDefault = settings.defaultAgent === id;
+
+  updateSettings(s => {
+    const updated = { ...s, agents: { ...s.agents } };
+    delete updated.agents![id];
+    if (wasDefault) delete updated.defaultAgent;
+    return updated;
+  });
+
+  auditLog({ action: 'cmd:agent-remove', sender: ctx.sender, detail: id, status: 'allowed' });
+  const extra = wasDefault ? ' (cleared default)' : '';
+  return { response: `Agent '${id}' removed.${extra}`, skipInvoke: true };
+}
+
+/** /agent provider <id> [provider] [--model M] */
+function agentProvider(args: string, ctx: CmdContext): CmdResult {
+  const parts = args.split(/\s+/);
+  const id = (parts[0] || '').replace(/^@/, '').toLowerCase();
+  if (!id) return { response: 'Usage: `/agent provider <id> [provider] [--model M]`', skipInvoke: true };
+
+  const agents = getAgents();
+  if (!agents[id]) return { response: `Agent '${id}' not found.`, skipInvoke: true };
+
+  const providerArg = parts[1];
+  if (!providerArg) {
+    const a = agents[id]!;
+    return { response: `${id} — ${a.provider}/${a.model}`, skipInvoke: true };
+  }
+
+  try { getProvider(providerArg); } catch {
+    return { response: `Unknown provider: ${providerArg}. Available: ${listProviders().join(', ')}`, skipInvoke: true };
+  }
+
+  const modelIdx = parts.indexOf('--model');
+  const model = modelIdx !== -1 ? parts[modelIdx + 1] : undefined;
+
+  updateSettings(s => {
+    const a = { ...s.agents![id]!, provider: providerArg };
+    if (model) a.model = model;
+    return { ...s, agents: { ...s.agents, [id]: a } };
+  });
+
+  auditLog({ action: 'cmd:agent-provider', sender: ctx.sender, detail: args, status: 'allowed' });
+  return { response: `${id} → ${providerArg}${model ? ` (${model})` : ''}`, skipInvoke: true };
+}
+
 const handlers: Record<string, CmdHandler> = {
   help: () => {
     const lines = [
       '*Commands:*',
       '`/help` — show this help',
       '`/status` — show system status',
+      '`/bash <cmd>` — run a shell command (allowlisted)',
       '`/model [model]` — show or set model',
       '`/agent [name]` — show or switch agent',
+      '`/agent add <id> <name> <provider> [model]`',
+      '`/agent remove <id> --force`',
+      '`/agent show <id>` — show agent details',
+      '`/agent provider <id> [provider] [--model M]`',
       '`/default [name]` — set default agent',
       '`/reset` — reset current session',
       '`/stop` — stop running agent',
@@ -106,14 +228,25 @@ const handlers: Record<string, CmdHandler> = {
     return { response: `Model set to: ${target}`, skipInvoke: true };
   },
 
-  agent: (args, _ctx) => {
+  agent: (args, ctx) => {
     if (!args.trim()) {
       return { response: formatAgentList(), skipInvoke: true };
     }
+
+    const parts = args.trim().split(/\s+/);
+    const sub = parts[0]!.toLowerCase();
+    const subArgs = parts.slice(1).join(' ');
+
+    // Subcommands
+    if (sub === 'add') return agentAdd(subArgs, ctx);
+    if (sub === 'remove') return agentRemove(subArgs, ctx);
+    if (sub === 'show') return agentShow(subArgs);
+    if (sub === 'provider') return agentProvider(subArgs, ctx);
+
+    // Default: switch to agent by name/id
     const agents = getAgents();
-    const target = args.trim().toLowerCase();
-    const agentId = Object.keys(agents).find(id => id.toLowerCase() === target);
-    if (!agentId) return { response: `Unknown agent: ${args.trim()}`, skipInvoke: true };
+    const agentId = Object.keys(agents).find(id => id.toLowerCase() === sub);
+    if (!agentId) return { response: `Unknown agent: ${sub}`, skipInvoke: true };
     return { response: `Switched to agent: ${agentId}`, skipInvoke: true, agent: agentId };
   },
 
@@ -142,6 +275,34 @@ const handlers: Record<string, CmdHandler> = {
     L.info('stop flag written', { sessionKey: ctx.sessionKey });
     return { response: 'Stop signal sent.', skipInvoke: true };
   },
+
+  bash: (args, ctx) => {
+    const cmd = args.trim();
+    if (!cmd) return { response: 'Usage: `/bash <command>`', skipInvoke: true };
+
+    const validation = validateShellCmd(cmd, getSettings().bash?.allowlist);
+    if (!validation.safe) {
+      auditLog({ action: 'cmd:bash', sender: ctx.sender, detail: cmd, status: 'denied', reason: validation.reason });
+      return { response: `Denied: ${validation.reason}`, skipInvoke: true };
+    }
+
+    try {
+      const parts = cmd.split(/\s+/);
+      const output = execFileSync(parts[0]!, parts.slice(1), {
+        encoding: 'utf-8',
+        timeout: 10_000,
+        maxBuffer: 100_000,
+      });
+      auditLog({ action: 'cmd:bash', sender: ctx.sender, detail: cmd, status: 'allowed' });
+      const trimmed = output.trim();
+      return { response: trimmed ? `\`\`\`\n${trimmed}\n\`\`\`` : '(no output)', skipInvoke: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { response: `Error: ${msg.slice(0, 500)}`, skipInvoke: true };
+    }
+  },
+
+  shell: (args, ctx) => handlers.bash(args, ctx),
 
   reload: (args, ctx) => {
     if (!args.includes('--force')) {
