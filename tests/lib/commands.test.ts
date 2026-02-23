@@ -11,6 +11,7 @@ vi.mock('../../src/lib/config.js', () => ({
   }),
   getDefaultAgentId: () => 'coder',
   getSettings: () => mockGetSettings(),
+  getTeams: () => mockGetSettings().teams ?? {},
   updateSettings: vi.fn((mutator: (s: Record<string, unknown>) => Record<string, unknown>) => mutator({})),
 }));
 
@@ -268,5 +269,61 @@ describe('dispatchCommand', () => {
     expect(result!.response).toContain('/bash');
     expect(result!.response).toContain('/agent add');
     expect(result!.response).toContain('/agent remove');
+    expect(result!.response).toContain('/team');
+  });
+
+  // /team commands
+  it('handles /team with no teams', () => {
+    const result = dispatchCommand('/team', ctx);
+    expect(result!.skipInvoke).toBe(true);
+    expect(result!.response).toContain('No teams configured');
+  });
+
+  it('handles /teams alias', () => {
+    const result = dispatchCommand('/teams', ctx);
+    expect(result!.skipInvoke).toBe(true);
+    expect(result!.response).toContain('No teams configured');
+  });
+
+  it('handles /team show with missing id', () => {
+    const result = dispatchCommand('/team show', ctx);
+    expect(result!.response).toContain('Usage');
+  });
+
+  it('handles /team show with unknown id', () => {
+    const result = dispatchCommand('/team show nonexistent', ctx);
+    expect(result!.response).toContain('not found');
+  });
+
+  it('handles /team add with missing args', () => {
+    const result = dispatchCommand('/team add foo', ctx);
+    expect(result!.response).toContain('Usage');
+  });
+
+  it('handles /team add with valid args', () => {
+    mockGetSettings.mockReturnValueOnce({
+      agents: {
+        coder: { name: 'Coder', provider: 'claude', model: 'sonnet', cwd: '/tmp' },
+        writer: { name: 'Writer', provider: 'claude', model: 'haiku', cwd: '/tmp' },
+      },
+    });
+    const result = dispatchCommand('/team add dev DevTeam coder writer', ctx);
+    expect(result!.response).toContain("Team 'dev' created");
+    expect(result!.response).toContain('leader: @coder');
+  });
+
+  it('handles /team remove without --force', () => {
+    const result = dispatchCommand('/team remove dev', ctx);
+    expect(result!.response).toContain('not found');
+  });
+
+  it('handles /team addagent with missing args', () => {
+    const result = dispatchCommand('/team addagent dev', ctx);
+    expect(result!.response).toContain('Usage');
+  });
+
+  it('handles /team removeagent with missing args', () => {
+    const result = dispatchCommand('/team removeagent', ctx);
+    expect(result!.response).toContain('Usage');
   });
 });

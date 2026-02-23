@@ -45,13 +45,6 @@ function getNameIndex(agents: Record<string, Agent>): Map<string, string> {
   return idx;
 }
 
-/**
- * 4-priority routing chain:
- * 1. Pre-routed (msg.agent set by command system)
- * 2. @mention prefix
- * 3. Sticky session (last explicit route for this thread)
- * 4. Default agent
- */
 /** Build team name/id → leader index. IDs take priority over display names. */
 let teamIndex: Map<string, string> | null = null;
 let teamIndexFP = '';
@@ -68,6 +61,7 @@ function getTeamIndex(teams: Record<string, Team>): Map<string, string> {
   return idx;
 }
 
+/** 4-priority routing: pre-routed → @mention (agent/team) → sticky session → default */
 export function resolveRoute(msg: InboundMsg): RouteResult {
   const agents = getAgents();
   const teams = getTeams();
