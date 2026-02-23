@@ -1,17 +1,6 @@
-/** Team utilities — pure functions for team lookups and validation */
+/** Team utilities — pure functions for team validation */
 
 import type { Team, Agent } from './types.js';
-
-/** Find which team an agent belongs to. Returns first match. */
-export function findTeamForAgent(
-  agentId: string,
-  teams: Record<string, Team>,
-): { teamId: string; team: Team } | null {
-  for (const [teamId, team] of Object.entries(teams)) {
-    if (team.agents.includes(agentId)) return { teamId, team };
-  }
-  return null;
-}
 
 /** Validate team config — returns error string or null if valid */
 export function validateTeam(

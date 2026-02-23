@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateTeam, findTeamForAgent } from '../../src/lib/team.js';
+import { validateTeam } from '../../src/lib/team.js';
 import type { Agent, Team } from '../../src/lib/types.js';
 
 const agents: Record<string, Agent> = {
@@ -30,29 +30,3 @@ describe('validateTeam', () => {
   });
 });
 
-describe('findTeamForAgent', () => {
-  const teams: Record<string, Team> = {
-    dev: { name: 'Dev Team', agents: ['coder', 'reviewer'], leader: 'coder' },
-    content: { name: 'Content', agents: ['writer'], leader: 'writer' },
-  };
-
-  it('finds team for agent', () => {
-    const result = findTeamForAgent('coder', teams);
-    expect(result).not.toBeNull();
-    expect(result!.teamId).toBe('dev');
-  });
-
-  it('returns null for agent not in any team', () => {
-    expect(findTeamForAgent('unknown', teams)).toBeNull();
-  });
-
-  it('finds first team when agent is in multiple', () => {
-    const overlapping = {
-      ...teams,
-      both: { name: 'Both', agents: ['coder', 'writer'], leader: 'coder' },
-    };
-    const result = findTeamForAgent('coder', overlapping);
-    expect(result).not.toBeNull();
-    expect(result!.teamId).toBe('dev');
-  });
-});

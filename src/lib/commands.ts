@@ -186,11 +186,11 @@ function teamShow(args: string): CmdResult {
   return { response: lines.join('\n'), skipInvoke: true };
 }
 
-/** /team add <id> <name> <leader> [agent2...] */
+/** /team add <id> <display-name> <leader> [agent2...] — name must be single word (no spaces) */
 function teamAdd(args: string, ctx: CmdContext): CmdResult {
   const parts = args.split(/\s+/).filter(Boolean);
   if (parts.length < 3) {
-    return { response: 'Usage: `/team add <id> <name> <leader> [agent2...]`', skipInvoke: true };
+    return { response: 'Usage: `/team add <id> <display-name> <leader> [agent2...]` (name: no spaces)', skipInvoke: true };
   }
   const [rawId, name, rawLeader, ...extra] = parts;
   const teamId = rawId!.replace(/^@/, '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
@@ -262,6 +262,30 @@ function teamAddAgent(args: string, ctx: CmdContext): CmdResult {
   return { response: `Added @${agentId} to team '${teamId}'.`, skipInvoke: true };
 }
 
+/** /team setleader <team> <agent> */
+function teamSetLeader(args: string, ctx: CmdContext): CmdResult {
+  const parts = args.split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return { response: 'Usage: `/team setleader <team> <agent>`', skipInvoke: true };
+
+  const teamId = parts[0]!.replace(/^@/, '').toLowerCase();
+  const agentId = parts[1]!.replace(/^@/, '').toLowerCase();
+
+  const teams = getTeams();
+  if (!teams[teamId]) return { response: `Team '${teamId}' not found.`, skipInvoke: true };
+
+  const team = teams[teamId]!;
+  if (!team.agents.includes(agentId)) return { response: `Agent '${agentId}' is not in team '${teamId}'.`, skipInvoke: true };
+  if (team.leader === agentId) return { response: `Agent '${agentId}' is already leader of '${teamId}'.`, skipInvoke: true };
+
+  updateSettings(s => ({
+    ...s,
+    teams: { ...s.teams, [teamId]: { ...team, leader: agentId } },
+  }));
+
+  auditLog({ action: 'cmd:team-setleader', sender: ctx.sender, detail: args, status: 'allowed' });
+  return { response: `Team '${teamId}' leader changed to @${agentId}.`, skipInvoke: true };
+}
+
 /** /team removeagent <team> <agent> */
 function teamRemoveAgent(args: string, ctx: CmdContext): CmdResult {
   const parts = args.split(/\s+/).filter(Boolean);
@@ -275,7 +299,7 @@ function teamRemoveAgent(args: string, ctx: CmdContext): CmdResult {
 
   const team = teams[teamId]!;
   if (!team.agents.includes(agentId)) return { response: `Agent '${agentId}' is not in team '${teamId}'.`, skipInvoke: true };
-  if (team.leader === agentId) return { response: 'Cannot remove leader agent. Change leader first or remove the team.', skipInvoke: true };
+  if (team.leader === agentId) return { response: 'Cannot remove leader. Use `/team setleader` first or remove the team.', skipInvoke: true };
   if (team.agents.length <= 1) return { response: 'Cannot remove last agent from team. Remove the team instead.', skipInvoke: true };
 
   updateSettings(s => {
@@ -307,11 +331,12 @@ const handlers: Record<string, CmdHandler> = {
       '`/memory clear [--shared]` — clear agent/shared memory',
       '`/agents` — list available agents',
       '`/team` — list teams',
-      '`/team add <id> <name> <leader> [agents...]`',
+      '`/team add <id> <display-name> <leader> [agents...]`',
       '`/team remove <id> --force`',
       '`/team show <id>` — show team details',
       '`/team addagent <team> <agent>`',
       '`/team removeagent <team> <agent>`',
+      '`/team setleader <team> <agent>`',
       '`/teams` — list teams',
       '`/reload --force` — rebuild and restart service',
     ];
@@ -417,6 +442,7 @@ const handlers: Record<string, CmdHandler> = {
     if (sub === 'remove' || sub === 'rm') return teamRemove(subArgs, ctx);
     if (sub === 'addagent') return teamAddAgent(subArgs, ctx);
     if (sub === 'removeagent') return teamRemoveAgent(subArgs, ctx);
+    if (sub === 'setleader') return teamSetLeader(subArgs, ctx);
     return teamList();
   },
 

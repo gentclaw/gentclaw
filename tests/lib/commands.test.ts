@@ -326,4 +326,53 @@ describe('dispatchCommand', () => {
     const result = dispatchCommand('/team removeagent', ctx);
     expect(result!.response).toContain('Usage');
   });
+
+  it('handles /team setleader with missing args', () => {
+    const result = dispatchCommand('/team setleader dev', ctx);
+    expect(result!.response).toContain('Usage');
+  });
+
+  it('handles /team setleader with valid args', () => {
+    mockGetSettings.mockReturnValueOnce({
+      agents: {
+        coder: { name: 'Coder', provider: 'claude', model: 'sonnet', cwd: '/tmp' },
+        writer: { name: 'Writer', provider: 'claude', model: 'haiku', cwd: '/tmp' },
+      },
+      teams: {
+        dev: { name: 'DevTeam', agents: ['coder', 'writer'], leader: 'coder' },
+      },
+    });
+    const result = dispatchCommand('/team setleader dev writer', ctx);
+    expect(result!.response).toContain('leader changed to @writer');
+  });
+
+  it('handles /team setleader with agent not in team', () => {
+    mockGetSettings.mockReturnValueOnce({
+      agents: {
+        coder: { name: 'Coder', provider: 'claude', model: 'sonnet', cwd: '/tmp' },
+      },
+      teams: {
+        dev: { name: 'DevTeam', agents: ['coder'], leader: 'coder' },
+      },
+    });
+    const result = dispatchCommand('/team setleader dev writer', ctx);
+    expect(result!.response).toContain('not in team');
+  });
+
+  it('handles /team add with id conflicting agent id', () => {
+    mockGetSettings.mockReturnValueOnce({
+      agents: {
+        coder: { name: 'Coder', provider: 'claude', model: 'sonnet', cwd: '/tmp' },
+      },
+    });
+    const result = dispatchCommand('/team add coder DevTeam coder', ctx);
+    expect(result!.response).toContain('conflicts with agent ID');
+  });
+
+  it('shows /team setleader in /help', () => {
+    mockListCustomCommands.mockReturnValue({});
+    mockListSkills.mockReturnValue({});
+    const result = dispatchCommand('/help', ctx);
+    expect(result!.response).toContain('/team setleader');
+  });
 });

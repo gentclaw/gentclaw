@@ -33,7 +33,7 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
   const agents = getAgents();
 
   // Persist sticky session — skip for team routes (team mentions are one-shot, not sticky)
-  if (msg.sessionKey && !route.isTeamRouted) {
+  if (msg.sessionKey && !route.teamId) {
     const agentCfg = agents[route.agentId];
     if (agentCfg) {
       setSessionAgent(msg.sessionKey, route.agentId, agentCfg.provider, agentCfg.model);

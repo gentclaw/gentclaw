@@ -74,26 +74,26 @@ describe('resolveRoute', () => {
     expect(result.agentId).toBe('coder');
     expect(result.message).toBe('fix the build');
     expect(result.routeType).toBe('mention');
-    expect(result.isTeamRouted).toBe(true);
+    expect(result.teamId).toBe('devteam');
   });
 
   it('routes @team by display name (case-insensitive)', () => {
     const result = resolveRoute(makeMsg({ message: '@Dev Team hello' }));
     // "Dev" doesn't match because parseDirective stops at whitespace
     // Team names with spaces won't match via @mention — by design
-    expect(result.isTeamRouted).toBe(false);
+    expect(result.teamId).toBeUndefined();
   });
 
   it('agents take priority over teams', () => {
     // @coder matches agent 'coder' even though coder is also in devteam
     const result = resolveRoute(makeMsg({ message: '@coder help' }));
     expect(result.agentId).toBe('coder');
-    expect(result.isTeamRouted).toBe(false);
+    expect(result.teamId).toBeUndefined();
   });
 
-  it('non-team routes have isTeamRouted=false', () => {
-    expect(resolveRoute(makeMsg({ agent: 'coder' })).isTeamRouted).toBe(false);
-    expect(resolveRoute(makeMsg({ sessionKey: 'sticky-session' })).isTeamRouted).toBe(false);
-    expect(resolveRoute(makeMsg()).isTeamRouted).toBe(false);
+  it('non-team routes have no teamId', () => {
+    expect(resolveRoute(makeMsg({ agent: 'coder' })).teamId).toBeUndefined();
+    expect(resolveRoute(makeMsg({ sessionKey: 'sticky-session' })).teamId).toBeUndefined();
+    expect(resolveRoute(makeMsg()).teamId).toBeUndefined();
   });
 });

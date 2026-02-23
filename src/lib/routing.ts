@@ -14,7 +14,7 @@ export type RouteResult = {
   agentId: string;
   message: string; // cleaned message (mention stripped if applicable)
   routeType: 'pre-routed' | 'mention' | 'sticky' | 'default';
-  isTeamRouted: boolean;
+  teamId?: string; // set when routed via team mention — value is the matched team ID
 };
 
 /** Parse leading @mention directive via character-level scan. */
@@ -45,17 +45,18 @@ function getNameIndex(agents: Record<string, Agent>): Map<string, string> {
   return idx;
 }
 
-/** Build team name/id → leader index. IDs take priority over display names. */
-let teamIndex: Map<string, string> | null = null;
+/** Build team name/id → {teamId, leaderId} index. IDs take priority over display names. */
+type TeamEntry = { teamId: string; leaderId: string };
+let teamIndex: Map<string, TeamEntry> | null = null;
 let teamIndexFP = '';
 
-function getTeamIndex(teams: Record<string, Team>): Map<string, string> {
-  const fp = Object.entries(teams).map(([id, t]) => `${id}:${t.name}:${t.leader}`).sort().join('|');
+function getTeamIndex(teams: Record<string, Team>): Map<string, TeamEntry> {
+  const fp = Object.entries(teams).map(([id, t]) => `${id}:${t.name}:${t.leader}:${t.agents.join(',')}`).sort().join('|');
   if (teamIndex && teamIndexFP === fp) return teamIndex;
-  const idx = new Map<string, string>();
+  const idx = new Map<string, TeamEntry>();
   // Names first so IDs override on collision
-  for (const [id, t] of Object.entries(teams)) idx.set(t.name.toLowerCase(), t.leader);
-  for (const [id, t] of Object.entries(teams)) idx.set(id.toLowerCase(), t.leader);
+  for (const [id, t] of Object.entries(teams)) idx.set(t.name.toLowerCase(), { teamId: id, leaderId: t.leader });
+  for (const [id, t] of Object.entries(teams)) idx.set(id.toLowerCase(), { teamId: id, leaderId: t.leader });
   teamIndex = idx;
   teamIndexFP = fp;
   return idx;
@@ -69,7 +70,7 @@ export function resolveRoute(msg: InboundMsg): RouteResult {
   // 1. Pre-routed
   if (msg.agent && agents[msg.agent]) {
     L.debug('pre-routed', { agentId: msg.agent });
-    return { agentId: msg.agent, message: msg.message, routeType: 'pre-routed', isTeamRouted: false };
+    return { agentId: msg.agent, message: msg.message, routeType: 'pre-routed' };
   }
 
   // 2. @mention (agent first, then team)
@@ -81,14 +82,14 @@ export function resolveRoute(msg: InboundMsg): RouteResult {
     const agentId = getNameIndex(agents).get(ref);
     if (agentId) {
       L.debug('mention-routed', { agentId, ref: directive.agentRef });
-      return { agentId, message: directive.body, routeType: 'mention', isTeamRouted: false };
+      return { agentId, message: directive.body, routeType: 'mention' };
     }
 
     // Team match — resolve to leader
-    const leaderId = getTeamIndex(teams).get(ref);
-    if (leaderId && agents[leaderId]) {
-      L.debug('team-routed', { agentId: leaderId, team: directive.agentRef });
-      return { agentId: leaderId, message: directive.body, routeType: 'mention', isTeamRouted: true };
+    const entry = getTeamIndex(teams).get(ref);
+    if (entry && agents[entry.leaderId]) {
+      L.debug('team-routed', { agentId: entry.leaderId, teamId: entry.teamId });
+      return { agentId: entry.leaderId, message: directive.body, routeType: 'mention', teamId: entry.teamId };
     }
   }
 
@@ -97,7 +98,7 @@ export function resolveRoute(msg: InboundMsg): RouteResult {
     const sticky = getSessionAgent(msg.sessionKey);
     if (sticky && agents[sticky]) {
       L.debug('sticky-routed', { agentId: sticky });
-      return { agentId: sticky, message: msg.message, routeType: 'sticky', isTeamRouted: false };
+      return { agentId: sticky, message: msg.message, routeType: 'sticky' };
     }
   }
 
@@ -107,5 +108,5 @@ export function resolveRoute(msg: InboundMsg): RouteResult {
     throw new RoutingError('No agents configured');
   }
   L.debug('default-routed', { agentId: defaultId });
-  return { agentId: defaultId, message: msg.message, routeType: 'default', isTeamRouted: false };
+  return { agentId: defaultId, message: msg.message, routeType: 'default' };
 }
