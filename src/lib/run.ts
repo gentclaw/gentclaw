@@ -10,6 +10,7 @@ import { MAX_RUN_TIMEOUT_MS, STOP_FLAG_POLL_MS } from './constants.js';
 import { stripAnsi } from './text.js';
 import type { TokenUsage } from './types.js';
 import { runInTmux } from './tmux.js';
+import { readAgentMemory, readSharedMemory, buildMemoryPrompt } from './memory.js';
 import { log } from './log.js';
 
 const L = log('run');
@@ -126,10 +127,17 @@ export async function runAgent(opts: RunOpts): Promise<RunAgentResult> {
     setCliSessionId(opts.sessionKey, cliSessionId);
   }
 
+  // Inject persistent memory into system prompt (per-agent + shared)
+  const agentMem = readAgentMemory(opts.agentId);
+  const sharedMem = readSharedMemory();
+  const systemPrompt = (agentMem || sharedMem)
+    ? buildMemoryPrompt(agentMem, sharedMem, config.systemPrompt)
+    : config.systemPrompt;
+
   const common = {
     model: config.model,
     prompt: opts.message,
-    systemPrompt: config.systemPrompt,
+    systemPrompt,
   };
 
   const args = buildProviderArgs(provider, { ...common, sessionId: cliSessionId, isResume });

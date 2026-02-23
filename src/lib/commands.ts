@@ -8,6 +8,7 @@ import { listProviders, getProvider } from './providers.js';
 import { getStatusSnapshot } from './tracker.js';
 import { resolveCustomCommand, listCustomCommands, listSkills } from './custom-commands.js';
 import { validateShellCmd } from './builtins/shell-safety.js';
+import { readAgentMemory, readSharedMemory, clearAgentMemory, clearSharedMemory } from './memory.js';
 import { log } from './log.js';
 import { auditLog } from './audit.js';
 
@@ -176,6 +177,8 @@ const handlers: Record<string, CmdHandler> = {
       '`/default [name]` — set default agent',
       '`/reset` — reset current session',
       '`/stop` — stop running agent',
+      '`/memory show [--shared]` — view agent/shared memory',
+      '`/memory clear [--shared]` — clear agent/shared memory',
       '`/agents` — list available agents',
       '`/reload --force` — rebuild and restart service',
     ];
@@ -318,6 +321,38 @@ const handlers: Record<string, CmdHandler> = {
       const msg = err instanceof Error ? err.message : String(err);
       return { response: `Error: ${msg.slice(0, 500)}`, skipInvoke: true };
     }
+  },
+
+  memory: (args, _ctx) => {
+    const sub = args.trim().split(/\s+/)[0]?.toLowerCase();
+    const isShared = args.includes('--shared');
+
+    if (sub === 'clear') {
+      if (isShared) {
+        clearSharedMemory();
+        return { response: 'Shared memory cleared.', skipInvoke: true };
+      }
+      // Clear all agent memories
+      const agents = getAgents();
+      for (const id of Object.keys(agents)) clearAgentMemory(id);
+      return { response: 'All agent memories cleared.', skipInvoke: true };
+    }
+
+    if (sub === 'show') {
+      if (isShared) {
+        const mem = readSharedMemory();
+        return { response: mem ? `*Shared memory:*\n\`\`\`\n${mem.slice(0, 3000)}\n\`\`\`` : 'No shared memory.', skipInvoke: true };
+      }
+      const agents = getAgents();
+      const lines: string[] = [];
+      for (const id of Object.keys(agents)) {
+        const mem = readAgentMemory(id);
+        if (mem) lines.push(`*${id}:*\n\`\`\`\n${mem.slice(0, 1000)}\n\`\`\``);
+      }
+      return { response: lines.length > 0 ? lines.join('\n\n') : 'No agent memories.', skipInvoke: true };
+    }
+
+    return { response: 'Usage: `/memory show [--shared]` or `/memory clear [--shared]`', skipInvoke: true };
   },
 
   shell: (args, ctx) => handlers.bash(args, ctx),

@@ -9,6 +9,7 @@ import { log } from './log.js';
 import { logInvocation } from './invocation-log.js';
 import { auditLog } from './audit.js';
 import { trackStart, trackFinish } from './tracker.js';
+import { extractMemoryFromResponse } from './memory.js';
 import type { InboundMsg } from './types.js';
 
 const L = log('pipeline');
@@ -68,8 +69,11 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
       });
     }
 
+    // Extract and persist memory tags from agent response
+    const responseText = extractMemoryFromResponse(route.agentId, result.text);
+
     // Post-message hooks (audit, transform response)
-    const postMsg: InboundMsg = { ...msg, message: result.text };
+    const postMsg: InboundMsg = { ...msg, message: responseText };
     const post = await runHooks('postMessage', postMsg);
 
     maybeCleanupSessions();

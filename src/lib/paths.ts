@@ -13,6 +13,7 @@ export const PATHS = {
   invocations: resolve(home, 'logs', 'invocations.jsonl'),
   audit: resolve(home, 'logs', 'audit.jsonl'),
   status: resolve(home, 'status.json'),
+  memory: resolve(home, 'memory'),
 } as const;
 
 /** All directories that must exist for the system to function. */
@@ -21,4 +22,5 @@ export const ALL_DIRS = [
   PATHS.logs,
   PATHS.sessions,
   PATHS.flags,
+  PATHS.memory,
 ] as const;
