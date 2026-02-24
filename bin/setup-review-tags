@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Idempotent setup for commit review tracking via git tags.
+# Tags travel with `git fetch --tags` (default) — no per-clone setup needed.
+# This script just adds convenience aliases.
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+remote="origin"
+
+# git reviewed [commit] — tag a commit as reviewed and push the tag
+git config --local alias.reviewed \
+  '!f() { commit="${1:-HEAD}"; short=$(git log -1 --format=%h "$commit"); tag="reviewed/$short"; git tag "$tag" "$commit" && git push '"$remote"' "$tag" && echo "marked $short as reviewed"; }; f'
+
+# git review-status — show last 20 commits, annotating reviewed ones
+git config --local alias.review-status \
+  '!bash -c '\''git log --format="%h %s" -20 | while read -r h rest; do if git tag -l "reviewed/$h" | grep -q .; then printf "%s \033[32m✓ reviewed\033[0m %s\n" "$h" "$rest"; else printf "%s   %s\n" "$h" "$rest"; fi; done'\'' --'
+
+# git unreviewed [base] — list commits since base that lack a reviewed/ tag
+git config --local alias.unreviewed \
+  '!bash -c '\''base="${1:-$(git describe --tags --abbrev=0 --exclude="reviewed/*" 2>/dev/null || echo HEAD~20)}"; git log "$base"..HEAD --format=%h | while read -r h; do git tag -l "reviewed/$h" | grep -q . || git log -1 --format="%h %s" "$h"; done'\'' --'
+
+echo "review tag aliases configured"
