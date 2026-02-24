@@ -51,3 +51,8 @@ export function checkRateLimit(
 export function resetRateLimits(): void {
   windows.clear();
 }
+
+/** Number of tracked senders (for testing). */
+export function getWindowCount(): number {
+  return windows.size;
+}

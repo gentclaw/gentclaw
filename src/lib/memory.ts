@@ -29,14 +29,17 @@ function trimEntries(content: string): string {
   return entries.join('');
 }
 
+const TRUNCATION_SUFFIX = '\n…(truncated)';
+const TRUNCATION_SUFFIX_BYTES = Buffer.byteLength(TRUNCATION_SUFFIX, 'utf8');
+
 /** Cap a single entry at ENTRY_MAX_LINES / ENTRY_MAX_BYTES to prevent budget exhaustion */
 function capEntry(content: string): string {
   let capped = content;
   if (Buffer.byteLength(capped, 'utf8') > ENTRY_MAX_BYTES) {
-    // Estimate char count from byte ratio, then trim conservatively
+    const budget = ENTRY_MAX_BYTES - TRUNCATION_SUFFIX_BYTES;
     const ratio = capped.length / Buffer.byteLength(capped, 'utf8');
-    capped = capped.slice(0, Math.floor(ENTRY_MAX_BYTES * ratio));
-    capped += '\n…(truncated)';
+    capped = capped.slice(0, Math.floor(budget * ratio));
+    capped += TRUNCATION_SUFFIX;
   }
   const lines = capped.split('\n');
   if (lines.length <= ENTRY_MAX_LINES) return capped;

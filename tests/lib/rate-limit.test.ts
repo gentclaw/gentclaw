@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { checkRateLimit, resetRateLimits } from '../../src/lib/builtins/rate-limit.js';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { checkRateLimit, resetRateLimits, getWindowCount } from '../../src/lib/builtins/rate-limit.js';
 import type { InboundMsg } from '../../src/lib/types.js';
 
 function makeMsg(sender = 'user1'): InboundMsg {
@@ -40,5 +40,25 @@ describe('checkRateLimit', () => {
     // Default is 10/60s — should allow
     const result = checkRateLimit(makeMsg());
     expect(result.action).toBe('allow');
+  });
+
+  it('evicts stale senders when map exceeds 100 entries', () => {
+    const cfg = { max: 5, windowSec: 1 };
+    const baseTime = 1_000_000;
+
+    // Fill 101 senders at baseTime
+    vi.spyOn(Date, 'now').mockReturnValue(baseTime);
+    for (let i = 0; i < 101; i++) {
+      checkRateLimit(makeMsg(`stale-${i}`), cfg);
+    }
+    expect(getWindowCount()).toBe(101);
+
+    // Advance past window — next check triggers eviction
+    vi.spyOn(Date, 'now').mockReturnValue(baseTime + 2000);
+    checkRateLimit(makeMsg('fresh'), cfg);
+
+    // All 101 stale senders evicted, only 'fresh' remains
+    expect(getWindowCount()).toBe(1);
+    vi.restoreAllMocks();
   });
 });

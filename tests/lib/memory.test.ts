@@ -138,7 +138,9 @@ describe('per-entry size cap', () => {
     appendMemoryFile('/dir', 'memory.md', huge);
 
     const written = vi.mocked(fs.writeFileSync).mock.calls[0][1] as string;
-    expect(Buffer.byteLength(written, 'utf8')).toBeLessThan(ENTRY_MAX_BYTES + 200); // timestamp overhead
+    // Capped content (excluding timestamp wrapper) must be within ENTRY_MAX_BYTES
+    const entryBody = written.replace(/^<!-- [^>]+-->\n/, '').replace(/\n$/, '');
+    expect(Buffer.byteLength(entryBody, 'utf8')).toBeLessThanOrEqual(ENTRY_MAX_BYTES);
     expect(written).toContain('…(truncated)');
   });
 });

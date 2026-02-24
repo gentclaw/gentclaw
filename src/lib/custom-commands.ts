@@ -14,7 +14,7 @@ type CustomCmdResult = {
   agent?: string;
 };
 
-/** Safely interpolate $ARGUMENTS — neutralize the token in user input to prevent recursive expansion */
+/** Safely interpolate $ARGUMENTS — escape exact-case token in user input to `\$ARGUMENTS` before substitution. Output is LLM prompt text; no downstream system interprets the backslash. */
 function interpolateArgs(template: string, args: string): string {
   const safe = args.trim().replaceAll('$ARGUMENTS', '\\$ARGUMENTS');
   return template.replaceAll('$ARGUMENTS', safe);
