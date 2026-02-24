@@ -55,14 +55,15 @@ export function getCliSessionId(sessionKey: string): string | undefined {
   return readSession(sessionKey)?.cliSessionId;
 }
 
-/** Set the CLI session ID for a session. */
+/** Set the CLI session ID for a session. Creates a stub session if none exists yet (race with pipeline). */
 export function setCliSessionId(sessionKey: string, cliSessionId: string): void {
+  const now = Date.now();
   const existing = readSession(sessionKey);
   if (!existing) {
-    L.warn('setCliSessionId: session not found, ignoring', { sessionKey });
+    writeSession({ sessionKey, agentId: '', provider: '', model: '', createdAt: now, lastAccessAt: now, cliSessionId });
     return;
   }
-  writeSession({ ...existing, cliSessionId, lastAccessAt: Date.now() });
+  writeSession({ ...existing, cliSessionId, lastAccessAt: now });
 }
 
 /** Delete a session. */

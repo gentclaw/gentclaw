@@ -9,12 +9,31 @@ const LEVEL_ORDER: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, erro
 let minLevel: LogLevel = 'info';
 let logFile: string | null = null;
 
-/** Patterns to redact from log output. */
-const SECRETS = [/xoxb-[a-zA-Z0-9-]+/g, /xapp-[a-zA-Z0-9-]+/g, /sk-[a-zA-Z0-9-]+/g];
+/** Patterns to redact from log output — must stay in sync with secrets-scan.ts */
+const SECRETS = [
+  /xoxb-[0-9A-Za-z-]+/g,      // Slack bot token
+  /xapp-[0-9A-Za-z-]+/g,      // Slack app token
+  /sk-[A-Za-z0-9]{20,}/g,     // OpenAI/Anthropic API key
+  /ghp_[A-Za-z0-9]{36,}/g,    // GitHub personal access token
+  /gho_[A-Za-z0-9]{36,}/g,    // GitHub OAuth token
+  /glpat-[A-Za-z0-9-]{20,}/g, // GitLab personal access token
+  /AIza[A-Za-z0-9_-]{35}/g,   // Google/Gemini API key
+];
 
 function redact(s: string): string {
   let out = s;
   for (const pat of SECRETS) out = out.replace(pat, '[REDACTED]');
+  return out;
+}
+
+/** Deep-redact all string values in a data object */
+function redactData(data: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (typeof v === 'string') out[k] = redact(v);
+    else if (v && typeof v === 'object' && !Array.isArray(v)) out[k] = redactData(v as Record<string, unknown>);
+    else out[k] = v;
+  }
   return out;
 }
 
@@ -35,7 +54,7 @@ function emit(level: LogLevel, mod: string, msg: string, data?: Record<string, u
     level,
     mod,
     msg: redact(msg),
-    ...(data ? { data } : {}),
+    ...(data ? { data: redactData(data) } : {}),
   };
   const line = JSON.stringify(entry);
   if (level === 'error') {

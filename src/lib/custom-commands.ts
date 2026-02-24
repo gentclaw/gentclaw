@@ -33,11 +33,23 @@ export function parseFrontmatter(content: string): { meta: Record<string, string
   return { meta, body: body!.trim() };
 }
 
+/** Cached skills with mtime-based invalidation to avoid re-reading filesystem on every command */
+let skillsCache: { skills: Record<string, CustomCommand>; mtime: number } | null = null;
+
+/** Invalidate the skills cache (for testing). */
+export function clearSkillsCache(): void { skillsCache = null; }
+
 /** Discover skills from ~/.claude/skills/<name>/SKILL.md */
 export function discoverSkills(): Record<string, CustomCommand> {
   const skillsDir = join(homedir(), '.claude', 'skills');
-  const result: Record<string, CustomCommand> = {};
 
+  // Check directory mtime for cache invalidation
+  try {
+    const mt = statSync(skillsDir).mtimeMs;
+    if (skillsCache && skillsCache.mtime === mt) return skillsCache.skills;
+  } catch { return {}; }
+
+  const result: Record<string, CustomCommand> = {};
   let entries: string[];
   try { entries = readdirSync(skillsDir); } catch { return result; }
 
@@ -63,6 +75,7 @@ export function discoverSkills(): Record<string, CustomCommand> {
     } catch { /* skip unreadable */ }
   }
 
+  try { skillsCache = { skills: result, mtime: statSync(skillsDir).mtimeMs }; } catch { /* best-effort */ }
   return result;
 }
 

@@ -1,8 +1,9 @@
 /** Agent memory — persistent knowledge across session resets */
 
-import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
 import { PATHS } from './paths.js';
+import { atomicWriteText } from './fs-utils.js';
 
 export const MEMORY_FILE = 'memory.md';
 export const SHARED_MEMORY_FILE = 'shared-memory.md';
@@ -12,15 +13,6 @@ export const ENTRY_MAX_LINES = 20;
 export const ENTRY_MAX_BYTES = 4096;
 
 const ENTRY_SEPARATOR_RE = /(?=^<!-- \d{4}-)/m;
-
-// ─── Atomic write ────────────────────────────────────────────────
-
-function atomicWriteText(filePath: string, data: string): void {
-  mkdirSync(dirname(filePath), { recursive: true });
-  const tmp = `${filePath}.tmp.${process.pid}`;
-  writeFileSync(tmp, data);
-  renameSync(tmp, filePath);
-}
 
 // ─── Entry-based trimming ────────────────────────────────────────
 

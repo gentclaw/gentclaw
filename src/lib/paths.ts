@@ -1,6 +1,9 @@
 import { resolve } from 'node:path';
 import { homedir } from 'node:os';
 
+/** Repo root — two levels up from dist/lib/ (or src/lib/ in dev). Shared by commands.ts, service.ts, reload-worker.ts. */
+export const SCRIPT_DIR = resolve(import.meta.dirname, '..', '..');
+
 const home = process.env['GENTCLAW_HOME'] || resolve(homedir(), '.gentclaw');
 
 export const PATHS = {

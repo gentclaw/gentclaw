@@ -58,11 +58,12 @@ describe('appendMemoryFile', () => {
     appendMemoryFile('/dir', 'memory.md', 'first note');
 
     expect(fs.writeFileSync).toHaveBeenCalledWith(
-      expect.stringContaining('.tmp.'),
+      expect.stringContaining('.tmp-'),
       expect.stringContaining('first note'),
+      'utf-8',
     );
     expect(fs.renameSync).toHaveBeenCalledWith(
-      expect.stringContaining('.tmp.'),
+      expect.stringContaining('.tmp-'),
       path.join('/dir', 'memory.md'),
     );
   });
@@ -185,7 +186,7 @@ describe('appendSharedMemory', () => {
     appendSharedMemory('shared fact');
 
     expect(fs.renameSync).toHaveBeenCalledWith(
-      expect.stringContaining('.tmp.'),
+      expect.stringContaining('.tmp-'),
       path.join('/mem', 'shared-memory.md'),
     );
   });
@@ -285,7 +286,7 @@ describe('extractMemoryFromResponse', () => {
 
     expect(result).toBe('hello  world');
     expect(fs.renameSync).toHaveBeenCalledWith(
-      expect.stringContaining('.tmp.'),
+      expect.stringContaining('.tmp-'),
       path.join('/mem', 'bot', 'memory.md'),
     );
   });
@@ -300,7 +301,7 @@ describe('extractMemoryFromResponse', () => {
 
     expect(result).toBe('hello  world');
     expect(fs.renameSync).toHaveBeenCalledWith(
-      expect.stringContaining('.tmp.'),
+      expect.stringContaining('.tmp-'),
       path.join('/mem', 'shared-memory.md'),
     );
   });

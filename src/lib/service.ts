@@ -2,9 +2,8 @@ import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { homedir, platform } from 'node:os';
-import { PATHS } from './paths.js';
+import { PATHS, SCRIPT_DIR } from './paths.js';
 import { SERVICE_LABEL as LABEL } from './constants.js';
-const SCRIPT_DIR = resolve(import.meta.dirname, '..', '..');
 /** Resolve stable node path — prefer brew symlink over versioned Cellar path. */
 const NODE_BIN = (() => {
   const p = process.execPath;

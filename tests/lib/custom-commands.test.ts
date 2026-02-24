@@ -5,6 +5,7 @@ import {
   parseFrontmatter,
   discoverSkills,
   listSkills,
+  clearSkillsCache,
 } from '../../src/lib/custom-commands.js';
 
 const mockGetSettings = vi.fn();
@@ -58,6 +59,7 @@ describe('parseFrontmatter', () => {
 describe('discoverSkills', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearSkillsCache();
   });
 
   it('discovers valid SKILL.md files', () => {
@@ -128,6 +130,7 @@ describe('discoverSkills', () => {
 describe('resolveCustomCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearSkillsCache();
     mockGetSettings.mockReturnValue({
       commands: {
         review: { description: 'Review code', prompt: 'Review this: $ARGUMENTS', agent: 'coder' },
@@ -238,6 +241,7 @@ describe('listCustomCommands', () => {
 describe('listSkills', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearSkillsCache();
   });
 
   it('returns skills not shadowed by custom commands', () => {

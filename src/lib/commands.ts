@@ -12,12 +12,10 @@ import { readAgentMemory, readSharedMemory, clearAgentMemory, clearSharedMemory 
 import { dispatchTeamCommand, teamList } from './commands/team.js';
 import { log } from './log.js';
 import { auditLog } from './audit.js';
+import { SCRIPT_DIR } from './paths.js';
 import type { CmdResult, CmdContext } from './types.js';
 
 const L = log('commands');
-
-/** Repo root — two levels up from dist/lib/ */
-const SCRIPT_DIR = resolve(import.meta.dirname, '..', '..');
 
 type CmdHandler = (args: string, ctx: CmdContext) => CmdResult;
 

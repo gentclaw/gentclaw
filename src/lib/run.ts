@@ -35,8 +35,16 @@ function runCommand(
 ): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const cleanup = () => {
+      clearInterval(stopInterval);
+      clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
+    };
+
     const settle = (fn: () => void) => {
-      if (!settled) { settled = true; fn(); }
+      if (!settled) { settled = true; cleanup(); fn(); }
     };
 
     const spawnEnv = {
@@ -60,13 +68,17 @@ function runCommand(
     child.stdout.on('data', (d: Buffer) => stdout.push(d));
     child.stderr.on('data', (d: Buffer) => stderr.push(d));
 
+    const killWithEscalation = () => {
+      child.kill('SIGTERM');
+      killTimer = setTimeout(() => { if (!settled) child.kill('SIGKILL'); }, 5_000);
+    };
+
     // Stop-flag watcher
     const stopInterval = setInterval(() => {
       if (existsSync(opts.stopFlagFile)) {
         L.info('stop flag detected, killing child');
         try { unlinkSync(opts.stopFlagFile); } catch { /* ignore */ }
-        child.kill('SIGTERM');
-        setTimeout(() => { if (!settled) child.kill('SIGKILL'); }, 5_000);
+        killWithEscalation();
         settle(() => resolve({
           response: stripAnsi(Buffer.concat(stdout).toString('utf-8')),
           exitCode: 130,
@@ -77,14 +89,11 @@ function runCommand(
     // Timeout guard
     const timer = setTimeout(() => {
       L.warn('run timeout, killing child');
-      child.kill('SIGTERM');
-      setTimeout(() => { if (!settled) child.kill('SIGKILL'); }, 5_000);
+      killWithEscalation();
       settle(() => reject(new RunError('Run timed out', 124)));
     }, opts.timeout);
 
     child.on('close', (code) => {
-      clearInterval(stopInterval);
-      clearTimeout(timer);
       const rawOut = stripAnsi(Buffer.concat(stdout).toString('utf-8'));
       const rawErr = stripAnsi(Buffer.concat(stderr).toString('utf-8'));
       if (rawErr) L.warn('child stderr', { code, err: rawErr.slice(0, 200) });
@@ -98,8 +107,6 @@ function runCommand(
     });
 
     child.on('error', (err) => {
-      clearInterval(stopInterval);
-      clearTimeout(timer);
       settle(() => reject(new RunError(`Spawn failed: ${errMsg(err)}`)));
     });
   });
