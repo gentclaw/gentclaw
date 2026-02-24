@@ -15,6 +15,17 @@ import { log } from './log.js';
 
 const L = log('run');
 
+/**
+ * Explicit env allowlist for child processes — never spread process.env.
+ * CLAUDECODE intentionally omitted — its presence triggers nested session detection.
+ */
+const SPAWN_ENV = {
+  PATH: process.env.PATH || '',
+  HOME: process.env.HOME || '',
+  FORCE_COLOR: '0',
+  CLAUDE_CODE_ENTRYPOINT: 'cli',
+} as const;
+
 type RunOpts = {
   agentId: string;
   message: string;
@@ -47,20 +58,11 @@ function runCommand(
       if (!settled) { settled = true; cleanup(); fn(); }
     };
 
-    const spawnEnv = {
-      PATH: process.env.PATH || '',
-      HOME: process.env.HOME || '',
-      FORCE_COLOR: '0',
-      // Claude Code SDK auth — must be 'cli' for spawned claude to authenticate.
-      // Hardcoded because launchd environment doesn't inherit this.
-      CLAUDE_CODE_ENTRYPOINT: 'cli',
-      // CLAUDECODE intentionally omitted — its presence (even empty) triggers nested session detection
-    };
-    L.info('spawning', { cmd, args: args.slice(0, 4), cwd: opts.cwd, env: spawnEnv });
+    L.info('spawning', { cmd, args: args.slice(0, 4), cwd: opts.cwd });
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: spawnEnv,
+      env: SPAWN_ENV,
     });
 
     const stdout: Buffer[] = [];
@@ -171,15 +173,7 @@ export async function runAgent(opts: RunOpts): Promise<RunAgentResult> {
   const execCmd = (command: string, cmdArgs: string[]): Promise<RunResult> => {
     const runOpts = { cwd, timeout: opts.timeout ?? MAX_RUN_TIMEOUT_MS, stopFlagFile: flagFile };
     if (provider.tmux) {
-      return runInTmux(command, cmdArgs, {
-        ...runOpts,
-        env: {
-          PATH: process.env.PATH || '',
-          HOME: process.env.HOME || '',
-          FORCE_COLOR: '0',
-          CLAUDE_CODE_ENTRYPOINT: 'cli',
-        },
-      });
+      return runInTmux(command, cmdArgs, { ...runOpts, env: SPAWN_ENV });
     }
     return runCommand(command, cmdArgs, runOpts);
   };

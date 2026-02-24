@@ -1,18 +1,11 @@
 import type { HookAction, InboundMsg } from '../types.js';
 
-const INJECTION_PATTERNS: RegExp[] = [
-  /ignore\s+(all\s+)?previous\s+instructions/i,
-  /ignore\s+(all\s+)?prior\s+instructions/i,
-  /you\s+are\s+now\s+/i,
-  /system\s*:\s*override/i,
-  /act\s+as\s+if\s+/i,
-  /new\s+system\s+prompt/i,
-  /disregard\s+(all\s+)?instructions/i,
-];
+/** Single combined regex — one engine invocation instead of 7 separate .test() calls */
+const INJECTION_RE = /ignore\s+(all\s+)?(previous|prior)\s+instructions|you\s+are\s+now\s+|system\s*:\s*override|act\s+as\s+if\s+|new\s+system\s+prompt|disregard\s+(all\s+)?instructions/i;
 
 /** Wrap suspicious content rather than blocking — agents decide how to handle it. */
 export function checkContentGuard(msg: InboundMsg): HookAction {
-  const suspicious = INJECTION_PATTERNS.some(pat => pat.test(msg.message));
+  const suspicious = INJECTION_RE.test(msg.message);
   if (!suspicious) return { action: 'allow' };
 
   return {

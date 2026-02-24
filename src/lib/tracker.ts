@@ -38,10 +38,11 @@ export function trackFinish(sessionKey: string, success: boolean): void {
   if (!task) return;
   active.delete(sessionKey);
 
+  const now = Date.now();
   const finished: CompletedTask = {
     ...task,
-    finishedAt: Date.now(),
-    durationMs: Date.now() - task.startedAt,
+    finishedAt: now,
+    durationMs: now - task.startedAt,
     success,
   };
 
