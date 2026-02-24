@@ -17,6 +17,7 @@ const L = log('run');
 
 /**
  * Explicit env allowlist for child processes — never spread process.env.
+ * Captured once at module load (intentional — daemon env never mutates at runtime).
  * CLAUDECODE intentionally omitted — its presence triggers nested session detection.
  */
 const SPAWN_ENV = {

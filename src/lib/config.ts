@@ -46,11 +46,10 @@ export function hasAgents(): boolean {
 
 /** Get configured agents. Throws ConfigError if none are configured. */
 export function getAgents(): Record<string, Agent> {
-  const s = getSettings();
-  if (!s.agents || Object.keys(s.agents).length === 0) {
+  if (!hasAgents()) {
     throw new ConfigError('No agents configured. Run the setup wizard or add agents to settings.json.');
   }
-  return s.agents;
+  return getSettings().agents!;
 }
 
 /** Get configured teams (empty record if none). */
