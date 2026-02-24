@@ -7,3 +7,6 @@ src/**/*.js.map
 *.swp
 .DS_Store
 *.md
+llm/
+tasks/
+archive/
