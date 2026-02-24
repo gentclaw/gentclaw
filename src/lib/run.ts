@@ -15,7 +15,6 @@ import { log } from './log.js';
 
 const L = log('run');
 
-
 type RunOpts = {
   agentId: string;
   message: string;
