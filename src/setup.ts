@@ -220,25 +220,16 @@ async function setupSlack(): Promise<void> {
     console.log(`\nNo agents configured yet.`);
 
     const useDefault = await ask('Create default assistant agent? (Y/n)', 'y');
-    if (useDefault.toLowerCase() === 'n' || useDefault.toLowerCase() === 'no') {
-      const { id, agent } = await promptAgent([]);
-      ensureAgentDir(agent.cwd);
-      updateSettings(s => ({
-        ...s,
-        agents: { ...s.agents, [id]: agent },
-        defaultAgent: s.defaultAgent || id,
-      }));
-      console.log(`\n${GREEN}Agent "${id}" added.${NC}`);
-    } else {
-      const { id, agent } = buildDefaultAgent();
-      ensureAgentDir(agent.cwd);
-      updateSettings(s => ({
-        ...s,
-        agents: { ...s.agents, [id]: agent },
-        defaultAgent: s.defaultAgent || id,
-      }));
-      console.log(`\n${GREEN}Default agent "${id}" created at ${agent.cwd}${NC}`);
-    }
+    const isCustom = useDefault.toLowerCase() === 'n' || useDefault.toLowerCase() === 'no';
+    const { id, agent } = isCustom ? await promptAgent([]) : buildDefaultAgent();
+
+    ensureAgentDir(agent.cwd);
+    updateSettings(s => ({
+      ...s,
+      agents: { ...s.agents, [id]: agent },
+      defaultAgent: s.defaultAgent || id,
+    }));
+    console.log(`\n${GREEN}Agent "${id}" created at ${agent.cwd}${NC}`);
   }
 
   showNextSteps();
