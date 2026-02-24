@@ -36,4 +36,10 @@ describe('stripAnsi', () => {
   it('leaves plain text unchanged', () => {
     expect(stripAnsi('plain text')).toBe('plain text');
   });
+
+  it('strips non-color CSI sequences (cursor, erase)', () => {
+    // Cursor up (\x1b[A), erase line (\x1b[2K), cursor position (\x1b[1;1H)
+    expect(stripAnsi('\x1b[2Khello\x1b[A')).toBe('hello');
+    expect(stripAnsi('\x1b[1;1Hworld')).toBe('world');
+  });
 });

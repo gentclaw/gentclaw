@@ -36,8 +36,8 @@ export function splitMessage(text: string, maxLen: number = MAX_MSG_LENGTH): str
   return chunks;
 }
 
-/** Strip ANSI escape codes from text. */
+/** Strip ANSI escape codes (CSI sequences: colors, cursor movement, erase, etc.) */
 export function stripAnsi(text: string): string {
   // eslint-disable-next-line no-control-regex
-  return text.replace(/\x1b\[[0-9;]*m/g, '');
+  return text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
 }

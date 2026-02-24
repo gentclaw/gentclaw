@@ -18,7 +18,7 @@ const DEFAULT_HOOKS: Partial<Record<HookEvent, HookDef[]>> = {
 type BuiltinFn = (msg: InboundMsg, config?: Record<string, unknown>) => HookAction;
 
 const BUILTINS: Record<string, BuiltinFn> = {
-  'rate-limit': (msg, cfg) => checkRateLimit(msg, cfg as { max?: number; windowSec?: number }),
+  'rate-limit': (msg, cfg) => checkRateLimit(msg, cfg),
   'content-guard': (msg) => checkContentGuard(msg),
   'secrets-scan': (msg) => secretsScan(msg),
 };
@@ -41,7 +41,13 @@ function runSubprocess(hook: HookDef, msg: InboundMsg): Promise<HookAction> {
           resolve({ action: 'allow' });
           return;
         }
-        resolve(parsed as unknown as HookAction);
+        if (parsed.action === 'block') {
+          resolve({ action: 'block', reason: typeof parsed.reason === 'string' ? parsed.reason : '' });
+        } else if (parsed.action === 'transform' && typeof parsed.message === 'string') {
+          resolve({ action: 'transform', message: parsed.message });
+        } else {
+          resolve({ action: 'allow' });
+        }
       } catch {
         L.warn('hook returned invalid JSON, allowing', { hook: hook.name });
         resolve({ action: 'allow' });

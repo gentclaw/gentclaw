@@ -20,9 +20,10 @@ function evictStaleSenders(cutoff: number): void {
 /** Evict expired timestamps and check if sender is over limit. */
 export function checkRateLimit(
   msg: InboundMsg,
-  config?: Partial<Config>,
+  config?: Record<string, unknown>,
 ): HookAction {
-  const { max, windowSec } = { ...DEFAULT_CONFIG, ...config };
+  const max = typeof config?.max === 'number' ? config.max : DEFAULT_CONFIG.max;
+  const windowSec = typeof config?.windowSec === 'number' ? config.windowSec : DEFAULT_CONFIG.windowSec;
   const now = Date.now();
   const cutoff = now - windowSec * 1000;
   const sender = msg.sender;

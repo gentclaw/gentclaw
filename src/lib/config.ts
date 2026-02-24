@@ -46,10 +46,11 @@ export function hasAgents(): boolean {
 
 /** Get configured agents. Throws ConfigError if none are configured. */
 export function getAgents(): Record<string, Agent> {
-  if (!hasAgents()) {
+  const agents = getSettings().agents;
+  if (!agents || Object.keys(agents).length === 0) {
     throw new ConfigError('No agents configured. Run the setup wizard or add agents to settings.json.');
   }
-  return getSettings().agents!;
+  return agents;
 }
 
 /** Get configured teams (empty record if none). */
@@ -59,9 +60,9 @@ export function getTeams(): Record<string, Team> {
 
 /** Get the default agent ID. Falls back to first configured agent. */
 export function getDefaultAgentId(): string {
-  const s = getSettings();
   const agents = getAgents();
-  if (s.defaultAgent && agents[s.defaultAgent]) return s.defaultAgent;
+  const defaultId = getSettings().defaultAgent;
+  if (defaultId && agents[defaultId]) return defaultId;
   return Object.keys(agents)[0]!;
 }
 
