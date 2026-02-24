@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runHooks } from '../../src/lib/hooks.js';
 import type { InboundMsg, Settings } from '../../src/lib/types.js';
+import { execFile } from 'node:child_process';
+
+vi.mock('node:child_process', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('node:child_process')>();
+  return { ...orig, execFile: vi.fn() };
+});
 
 let mockSettings: Settings = {};
 
@@ -98,5 +104,41 @@ describe('runHooks', () => {
 
     const result = await runHooks('preMessage', makeMsg());
     expect(result.action).toBe('block');
+  });
+
+  it('allows when subprocess returns invalid action field', async () => {
+    const mockExecFile = vi.mocked(execFile);
+    mockExecFile.mockImplementation((_cmd, _args, _opts, cb) => {
+      // Return JSON with invalid action value
+      (cb as Function)(null, '{"action":"explode","data":"bad"}', '');
+      return {} as ReturnType<typeof execFile>;
+    });
+
+    mockSettings = {
+      hooks: {
+        preMessage: [{ name: 'bad-hook', command: '/bin/echo' }],
+      },
+    };
+
+    const result = await runHooks('preMessage', makeMsg());
+    expect(result.action).toBe('allow');
+    expect(result.message).toBe('hello');
+  });
+
+  it('allows when subprocess returns non-JSON', async () => {
+    const mockExecFile = vi.mocked(execFile);
+    mockExecFile.mockImplementation((_cmd, _args, _opts, cb) => {
+      (cb as Function)(null, 'not json at all', '');
+      return {} as ReturnType<typeof execFile>;
+    });
+
+    mockSettings = {
+      hooks: {
+        preMessage: [{ name: 'garbage-hook', command: '/bin/echo' }],
+      },
+    };
+
+    const result = await runHooks('preMessage', makeMsg());
+    expect(result.action).toBe('allow');
   });
 });

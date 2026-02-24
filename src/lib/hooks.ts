@@ -8,6 +8,7 @@ import type { HookAction, HookDef, HookEvent, InboundMsg } from './types.js';
 
 const L = log('hooks');
 const DEFAULT_TIMEOUT = 5000;
+const VALID_ACTIONS = new Set(['allow', 'block', 'transform']);
 
 /** Safety hooks that always run, even without explicit settings config. */
 const DEFAULT_HOOKS: Partial<Record<HookEvent, HookDef[]>> = {
@@ -34,8 +35,13 @@ function runSubprocess(hook: HookDef, msg: InboundMsg): Promise<HookAction> {
         return;
       }
       try {
-        const result = JSON.parse(stdout.trim()) as HookAction;
-        resolve(result);
+        const parsed = JSON.parse(stdout.trim()) as Record<string, unknown>;
+        if (!parsed || typeof parsed.action !== 'string' || !VALID_ACTIONS.has(parsed.action)) {
+          L.warn('hook returned invalid action, allowing', { hook: hook.name });
+          resolve({ action: 'allow' });
+          return;
+        }
+        resolve(parsed as unknown as HookAction);
       } catch {
         L.warn('hook returned invalid JSON, allowing', { hook: hook.name });
         resolve({ action: 'allow' });

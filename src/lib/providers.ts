@@ -168,16 +168,22 @@ function extractJsonlUsage(raw: string): TokenUsage | undefined {
   return undefined;
 }
 
+/** Pick first numeric field found by name from an object (camelCase/snake_case fallback) */
+function pickNumericField(obj: Record<string, unknown>, ...names: string[]): number | undefined {
+  for (const n of names) {
+    if (typeof obj[n] === 'number') return obj[n] as number;
+  }
+  return undefined;
+}
+
 /** Gemini JSON: look for usageMetadata.promptTokenCount / candidatesTokenCount */
 function extractJsonUsage(raw: string): TokenUsage | undefined {
   try {
     const obj = JSON.parse(raw) as Record<string, unknown>;
     const meta = (obj['usageMetadata'] ?? obj['usage_metadata']) as Record<string, unknown> | undefined;
     if (!meta) return undefined;
-    const input = typeof meta['promptTokenCount'] === 'number' ? meta['promptTokenCount']
-      : typeof meta['prompt_token_count'] === 'number' ? meta['prompt_token_count'] : undefined;
-    const output = typeof meta['candidatesTokenCount'] === 'number' ? meta['candidatesTokenCount']
-      : typeof meta['candidates_token_count'] === 'number' ? meta['candidates_token_count'] : undefined;
+    const input = pickNumericField(meta, 'promptTokenCount', 'prompt_token_count');
+    const output = pickNumericField(meta, 'candidatesTokenCount', 'candidates_token_count');
     if (input !== undefined && output !== undefined) return { input, output };
   } catch { /* not JSON */ }
   return undefined;
