@@ -10,7 +10,6 @@ import type { Settings, Agent, MsgChannel } from './lib/types.js';
 // ANSI colors
 const BLUE = '\x1b[34m';
 const GREEN = '\x1b[32m';
-const RED = '\x1b[31m';
 const DIM = '\x1b[2m';
 const NC = '\x1b[0m';
 
@@ -320,14 +319,4 @@ export async function setup(subcmd?: string): Promise<void> {
   } finally {
     rl.close();
   }
-}
-
-// Direct execution
-const isDirectRun = process.argv[1]?.endsWith('setup.js');
-if (isDirectRun) {
-  const subcmd = process.argv[2];
-  setup(subcmd).catch(err => {
-    console.error(`${RED}Setup failed: ${err instanceof Error ? err.message : err}${NC}`);
-    process.exit(1);
-  });
 }

@@ -370,8 +370,6 @@ const handlers: Record<string, CmdHandler> = {
     return { response: 'Usage: `/memory show [--shared]` or `/memory clear [--shared]`', skipInvoke: true };
   },
 
-  shell: (args, ctx) => handlers.bash(args, ctx),
-
   reload: (args, ctx) => {
     if (!args.includes('--force')) {
       return {

@@ -34,11 +34,6 @@ function writeSession(session: Session): void {
   atomicWriteJson(sessionPath(session.sessionKey), session);
 }
 
-/** Get a session. */
-export function getSession(sessionKey: string): Session | null {
-  return readSession(sessionKey);
-}
-
 /** Get the sticky agent for a session. */
 export function getSessionAgent(sessionKey: string): string | undefined {
   return readSession(sessionKey)?.agentId;

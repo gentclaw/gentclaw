@@ -10,15 +10,13 @@ import { log } from './log.js';
 
 const L = log('tmux');
 
-const tmuxEnv = SUBPROCESS_ENV;
-
 /** Run tmux with array args — no shell interpretation, no escaping needed. */
 function tmux(...args: string[]): string {
   try {
     return execFileSync('tmux', args, {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: tmuxEnv,
+      env: SUBPROCESS_ENV,
     }).trim();
   } catch {
     return '';

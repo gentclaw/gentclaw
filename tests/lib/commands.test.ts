@@ -207,12 +207,6 @@ describe('dispatchCommand', () => {
     expect(result!.response).toContain('hello');
   });
 
-  it('handles /shell alias', () => {
-    const result = dispatchCommand('/shell echo test', ctx);
-    expect(result!.skipInvoke).toBe(true);
-    expect(result!.response).toContain('test');
-  });
-
   it('blocks unsafe bash commands', () => {
     const result = dispatchCommand('/bash rm -rf /', ctx);
     expect(result!.skipInvoke).toBe(true);

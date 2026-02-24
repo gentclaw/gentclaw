@@ -23,12 +23,8 @@ function persist(): void {
   } catch { /* best-effort */ }
 }
 
-function ensureAgent(agentId: string): void {
-  if (!history.has(agentId)) history.set(agentId, []);
-}
-
 export function trackStart(agentId: string, sessionKey: string, message: string): void {
-  ensureAgent(agentId);
+  if (!history.has(agentId)) history.set(agentId, []);
   active.set(sessionKey, { agentId, sessionKey, messagePreview: truncate(message), startedAt: Date.now() });
   persist();
 }
@@ -46,7 +42,7 @@ export function trackFinish(sessionKey: string, success: boolean): void {
     success,
   };
 
-  ensureAgent(task.agentId);
+  if (!history.has(task.agentId)) history.set(task.agentId, []);
   const ring = history.get(task.agentId)!;
   ring.unshift(finished);
   if (ring.length > MAX_HISTORY) ring.length = MAX_HISTORY;

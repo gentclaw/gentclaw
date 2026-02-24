@@ -18,9 +18,9 @@ const DEFAULT_HOOKS: Partial<Record<HookEvent, HookDef[]>> = {
 type BuiltinFn = (msg: InboundMsg, config?: Record<string, unknown>) => HookAction;
 
 const BUILTINS: Record<string, BuiltinFn> = {
-  'rate-limit': (msg, cfg) => checkRateLimit(msg, cfg),
-  'content-guard': (msg) => checkContentGuard(msg),
-  'secrets-scan': (msg) => secretsScan(msg),
+  'rate-limit': checkRateLimit,
+  'content-guard': checkContentGuard,
+  'secrets-scan': secretsScan,
 };
 
 /** Run a single subprocess hook. Receives JSON on stdin, parses JSON from stdout. */
