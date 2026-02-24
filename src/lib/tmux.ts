@@ -3,14 +3,14 @@ import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { TMUX_SESSION, TMUX_POLL_MS } from './constants.js';
+import { TMUX_SESSION, TMUX_POLL_MS, SUBPROCESS_ENV } from './constants.js';
 import { RunError } from './errors.js';
 import { stripAnsi } from './text.js';
 import { log } from './log.js';
 
 const L = log('tmux');
 
-const tmuxEnv = { PATH: process.env.PATH || '', HOME: process.env.HOME || '' };
+const tmuxEnv = SUBPROCESS_ENV;
 
 /** Run tmux with array args — no shell interpretation, no escaping needed. */
 function tmux(...args: string[]): string {

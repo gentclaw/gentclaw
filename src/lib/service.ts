@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, realpathSync, unlinkSync, writeFileSync } from '
 import { resolve } from 'node:path';
 import { homedir, platform } from 'node:os';
 import { PATHS, SCRIPT_DIR } from './paths.js';
-import { SERVICE_LABEL as LABEL } from './constants.js';
+import { SERVICE_LABEL as LABEL, SUBPROCESS_ENV } from './constants.js';
 /** Resolve stable node path — prefer brew symlink over versioned Cellar path. */
 const NODE_BIN = (() => {
   const p = process.execPath;
@@ -28,11 +28,7 @@ function exec(cmd: string): string {
     return execSync(cmd, {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        PATH: process.env.PATH || '',
-        HOME: process.env.HOME || '',
-        USER: process.env.USER || '',
-      },
+      env: { ...SUBPROCESS_ENV, USER: process.env.USER || '' },
     }).trim();
   } catch {
     return '';

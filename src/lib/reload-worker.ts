@@ -5,17 +5,14 @@
  */
 import { execSync } from 'node:child_process';
 import { platform } from 'node:os';
-import { SERVICE_LABEL as LABEL } from './constants.js';
+import { SERVICE_LABEL as LABEL, SUBPROCESS_ENV } from './constants.js';
 import { SCRIPT_DIR } from './paths.js';
 
 function exec(cmd: string): void {
   execSync(cmd, {
     cwd: SCRIPT_DIR,
     stdio: 'inherit',
-    env: {
-      PATH: process.env.PATH || '',
-      HOME: process.env.HOME || '',
-    },
+    env: SUBPROCESS_ENV,
   });
 }
 

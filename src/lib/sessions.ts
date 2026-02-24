@@ -4,6 +4,7 @@ import { PATHS } from './paths.js';
 import { atomicWriteJson } from './fs-utils.js';
 import { SESSION_TTL_MS, SESSION_CLEANUP_PROB } from './constants.js';
 import { log } from './log.js';
+import { errMsg } from './errors.js';
 import type { Session } from './types.js';
 
 const L = log('sessions');
@@ -21,7 +22,10 @@ function readSession(sessionKey: string): Session | null {
   try {
     const raw = readFileSync(sessionPath(sessionKey), 'utf-8');
     return JSON.parse(raw) as Session;
-  } catch {
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      L.warn('session read failed', { sessionKey, error: errMsg(err) });
+    }
     return null;
   }
 }

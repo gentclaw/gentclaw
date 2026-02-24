@@ -20,3 +20,21 @@ export const HEARTBEAT_FALLBACK_PROMPT = 'Quick status check: Any pending tasks?
 
 // Service
 export const SERVICE_LABEL = 'com.gentclaw.agent';
+
+/**
+ * Explicit env allowlist for child processes — never spread process.env.
+ * Captured once at module load (daemon env never mutates at runtime).
+ * CLAUDECODE intentionally omitted — triggers nested session detection.
+ */
+export const SPAWN_ENV = {
+  PATH: process.env.PATH || '',
+  HOME: process.env.HOME || '',
+  FORCE_COLOR: '0',
+  CLAUDE_CODE_ENTRYPOINT: 'cli',
+} as const;
+
+/** Minimal env for non-Claude subprocesses (no CLAUDE_CODE_ENTRYPOINT needed). */
+export const SUBPROCESS_ENV = {
+  PATH: process.env.PATH || '',
+  HOME: process.env.HOME || '',
+} as const;

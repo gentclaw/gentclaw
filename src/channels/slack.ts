@@ -33,14 +33,16 @@ function removeReaction(channel: string, timestamp: string, name: string): void 
   );
 }
 
+type SlackFile = { name?: string; size?: number; url_private?: string };
+
 /** Download text content from Slack file attachments. Returns file contents appended to message. */
 async function downloadAttachments(files: unknown[], botToken: string): Promise<string> {
   const parts: string[] = [];
   for (const f of files) {
-    const file = f as Record<string, unknown>;
-    const name = file['name'] as string || 'unnamed';
-    const size = file['size'] as number || 0;
-    const url = file['url_private'] as string;
+    const file = f as SlackFile;
+    const name = file.name || 'unnamed';
+    const size = file.size || 0;
+    const url = file.url_private;
 
     if (!url || size > MAX_FILE_SIZE) {
       parts.push(`[file: ${name} — skipped (${size > MAX_FILE_SIZE ? 'too large' : 'no url'})]`);

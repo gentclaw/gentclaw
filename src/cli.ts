@@ -100,6 +100,7 @@ function showStatus(): void {
 async function startProcess(): Promise<void> {
   process.on('unhandledRejection', (err) => {
     console.error('[FATAL] unhandled rejection:', err);
+    process.exit(1);
   });
   process.on('uncaughtException', (err) => {
     console.error('[FATAL] uncaught exception:', err);

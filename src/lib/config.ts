@@ -19,7 +19,8 @@ export function getSettings(): Settings {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       return {};
     }
-    throw new ConfigError(`Failed to read settings: ${errMsg(err)}`);
+    const code = (err as NodeJS.ErrnoException).code;
+    throw new ConfigError(`Failed to read settings${code ? ` (${code})` : ''}: ${errMsg(err)}`);
   }
 }
 

@@ -6,7 +6,7 @@ import { getProvider, buildProviderArgs, parseProviderOutput, extractUsage, getN
 import { getAgents } from './config.js';
 import { getCliSessionId, setCliSessionId, stopFlagPath } from './sessions.js';
 import { RunError, errMsg } from './errors.js';
-import { MAX_RUN_TIMEOUT_MS, STOP_FLAG_POLL_MS } from './constants.js';
+import { MAX_RUN_TIMEOUT_MS, STOP_FLAG_POLL_MS, SPAWN_ENV } from './constants.js';
 import { stripAnsi } from './text.js';
 import type { TokenUsage } from './types.js';
 import { runInTmux } from './tmux.js';
@@ -15,17 +15,6 @@ import { log } from './log.js';
 
 const L = log('run');
 
-/**
- * Explicit env allowlist for child processes — never spread process.env.
- * Captured once at module load (intentional — daemon env never mutates at runtime).
- * CLAUDECODE intentionally omitted — its presence triggers nested session detection.
- */
-const SPAWN_ENV = {
-  PATH: process.env.PATH || '',
-  HOME: process.env.HOME || '',
-  FORCE_COLOR: '0',
-  CLAUDE_CODE_ENTRYPOINT: 'cli',
-} as const;
 
 type RunOpts = {
   agentId: string;
