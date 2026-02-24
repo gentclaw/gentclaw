@@ -1,9 +1,11 @@
 import * as readline from 'node:readline';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { resolve, basename } from 'node:path';
+import { homedir } from 'node:os';
 import { PATHS } from './lib/paths.js';
 import { ensureDirectories } from './lib/fs-utils.js';
 import { writeSettings, updateSettings, getSettings } from './lib/config.js';
-import type { Settings, Agent } from './lib/types.js';
+import type { Settings, Agent, MsgChannel } from './lib/types.js';
 
 // ANSI colors
 const BLUE = '\x1b[34m';
@@ -99,13 +101,65 @@ async function promptSlackTokens(): Promise<{ botToken: string; appToken: string
   return { botToken, appToken };
 }
 
+/** Create agent working directory with a minimal CLAUDE.md scaffold */
+function ensureAgentDir(agentDir: string): void {
+  mkdirSync(agentDir, { recursive: true });
+
+  const claudeMd = resolve(agentDir, 'CLAUDE.md');
+  if (!existsSync(claudeMd)) {
+    writeFileSync(claudeMd, `# Agent Workspace\n\nThis directory is the agent's working directory for gentclaw.\n`);
+  }
+}
+
+/** Build default agent config with zero prompts — matches claw's bootstrapFreshSettings */
+function buildDefaultAgent(): { id: string; agent: Agent } {
+  const wsDir = resolve(homedir(), 'gentclaw-workspace');
+  const agentDir = resolve(wsDir, 'assistant');
+  return {
+    id: 'assistant',
+    agent: {
+      name: 'Assistant',
+      provider: 'claude',
+      model: 'sonnet',
+      cwd: agentDir,
+    },
+  };
+}
+
+/** Add channel to enabled list idempotently */
+function addEnabledChannel(settings: Settings, channel: MsgChannel): Settings['channels'] {
+  const existing = settings.channels ?? {};
+  const enabled = existing.enabled ?? [];
+  const deduped = Array.from(new Set([...enabled, channel]));
+  return { ...existing, enabled: deduped };
+}
+
+/** Show next-steps. Omits build step when running from installed binary. */
+function showNextSteps(): void {
+  const runningFromDist = process.argv[1]?.includes('/dist/');
+  const binaryName = basename(process.argv[1] ?? 'gentclaw').replace(/\.js$/, '');
+  const cmd = runningFromDist ? binaryName : 'gentclaw';
+
+  console.log(`\nNext steps:`);
+  if (!runningFromDist) {
+    console.log(`  1. Build: ${GREEN}npm run build${NC}`);
+    console.log(`  2. Start: ${GREEN}${cmd} start${NC}`);
+  } else {
+    console.log(`  Start: ${GREEN}${cmd} start${NC}`);
+  }
+  console.log('');
+}
+
 /** Prompt user for agent config. Validates ID against existing agents. */
 async function promptAgent(existingIds: string[]): Promise<{ id: string; agent: Agent }> {
   console.log('\n--- Add Agent ---');
+  console.log(`${DIM}Press Enter to accept defaults for a quick setup.${NC}\n`);
+
+  const defaultAgent = buildDefaultAgent();
 
   let id = '';
   while (!id) {
-    const raw = await ask('Agent ID (e.g. reviewer)');
+    const raw = await ask('Agent ID (e.g. reviewer)', defaultAgent.id);
     if (!raw) {
       console.log('Agent ID cannot be empty.');
       continue;
@@ -121,11 +175,14 @@ async function promptAgent(existingIds: string[]): Promise<{ id: string; agent: 
     id = raw;
   }
 
-  const defaultName = id.charAt(0).toUpperCase() + id.slice(1);
+  const isDefault = id === defaultAgent.id;
+  const defaultName = isDefault ? defaultAgent.agent.name : id.charAt(0).toUpperCase() + id.slice(1);
+  const defaultCwd = isDefault ? defaultAgent.agent.cwd : process.cwd();
+
   const name = await ask('Agent name', defaultName);
-  const provider = await ask('Provider', 'claude');
-  const model = await ask('Model', 'sonnet');
-  const cwd = await ask('Working directory', process.cwd());
+  const provider = await ask('Provider', defaultAgent.agent.provider);
+  const model = await ask('Model', defaultAgent.agent.model);
+  const cwd = await ask('Working directory', defaultCwd);
 
   return { id, agent: { name, provider, model, cwd } };
 }
@@ -145,12 +202,12 @@ async function setupSlack(): Promise<void> {
   if (existsSync(PATHS.settings)) {
     updateSettings(s => ({
       ...s,
-      channels: { ...s.channels, slack: { botToken, appToken } },
+      channels: { ...addEnabledChannel(s, 'slack'), slack: { botToken, appToken } },
     }));
   } else {
     ensureDirectories();
     writeSettings({
-      channels: { slack: { botToken, appToken } },
+      channels: { enabled: ['slack'], slack: { botToken, appToken } },
       devMode: false,
       logging: { verbose: false },
     });
@@ -160,20 +217,31 @@ async function setupSlack(): Promise<void> {
   console.log(`  Config: ${DIM}${PATHS.settings}${NC}`);
 
   if (!existing.agents || Object.keys(existing.agents).length === 0) {
-    console.log(`\nNo agents configured yet. Add one now to complete setup.`);
-    const { id, agent } = await promptAgent([]);
-    updateSettings(s => ({
-      ...s,
-      agents: { ...s.agents, [id]: agent },
-      defaultAgent: s.defaultAgent || id,
-    }));
-    console.log(`\n${GREEN}Agent "${id}" added.${NC}`);
+    console.log(`\nNo agents configured yet.`);
+
+    const useDefault = await ask('Create default assistant agent? (Y/n)', 'y');
+    if (useDefault.toLowerCase() === 'n' || useDefault.toLowerCase() === 'no') {
+      const { id, agent } = await promptAgent([]);
+      ensureAgentDir(agent.cwd);
+      updateSettings(s => ({
+        ...s,
+        agents: { ...s.agents, [id]: agent },
+        defaultAgent: s.defaultAgent || id,
+      }));
+      console.log(`\n${GREEN}Agent "${id}" added.${NC}`);
+    } else {
+      const { id, agent } = buildDefaultAgent();
+      ensureAgentDir(agent.cwd);
+      updateSettings(s => ({
+        ...s,
+        agents: { ...s.agents, [id]: agent },
+        defaultAgent: s.defaultAgent || id,
+      }));
+      console.log(`\n${GREEN}Default agent "${id}" created at ${agent.cwd}${NC}`);
+    }
   }
 
-  console.log(`\nNext steps:`);
-  console.log(`  1. Build: ${GREEN}npm run build${NC}`);
-  console.log(`  2. Start: ${GREEN}gentclaw start${NC}`);
-  console.log('');
+  showNextSteps();
 }
 
 async function addAgent(): Promise<void> {
@@ -187,6 +255,7 @@ async function addAgent(): Promise<void> {
   }
 
   const { id, agent } = await promptAgent(existingIds);
+  ensureAgentDir(agent.cwd);
 
   updateSettings(s => ({
     ...s,
@@ -207,8 +276,25 @@ async function fullSetup(): Promise<void> {
   showSlackInstructions();
   const { botToken, appToken } = await promptSlackTokens();
 
-  // Default agent
-  const { id, agent } = await promptAgent([]);
+  // Default agent — offer zero-config path
+  console.log('\n--- Agent Configuration ---');
+  const useDefault = await ask('Create default assistant agent? (Y/n)', 'y');
+
+  let agentId: string;
+  let agent: Agent;
+
+  if (useDefault.toLowerCase() === 'n' || useDefault.toLowerCase() === 'no') {
+    const result = await promptAgent([]);
+    agentId = result.id;
+    agent = result.agent;
+  } else {
+    const result = buildDefaultAgent();
+    agentId = result.id;
+    agent = result.agent;
+    console.log(`${DIM}Using defaults: ${agentId} (${agent.provider}/${agent.model}) at ${agent.cwd}${NC}`);
+  }
+
+  ensureAgentDir(agent.cwd);
 
   // Allowed senders
   console.log('\n--- Access Control ---');
@@ -216,9 +302,9 @@ async function fullSetup(): Promise<void> {
   const allowedSenders = sendersRaw ? sendersRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
 
   const settings: Settings = {
-    channels: { slack: { botToken, appToken } },
-    agents: { [id]: agent },
-    defaultAgent: id,
+    channels: { enabled: ['slack'], slack: { botToken, appToken } },
+    agents: { [agentId]: agent },
+    defaultAgent: agentId,
     allowedSenders: allowedSenders.length > 0 ? allowedSenders : undefined,
     devMode: false,
     logging: { verbose: false },
@@ -227,10 +313,8 @@ async function fullSetup(): Promise<void> {
   writeSettings(settings);
 
   console.log(`\n${GREEN}Settings written to: ${PATHS.settings}${NC}`);
-  console.log(`\nNext steps:`);
-  console.log(`  1. Build: ${GREEN}npm run build${NC}`);
-  console.log(`  2. Start: ${GREEN}gentclaw start${NC}`);
-  console.log('');
+  console.log(`Agent directory created: ${DIM}${agent.cwd}${NC}`);
+  showNextSteps();
 }
 
 export async function setup(subcmd?: string): Promise<void> {

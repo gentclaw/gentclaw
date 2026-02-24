@@ -56,9 +56,12 @@ function showProviders(): void {
 }
 
 function showStatus(): void {
+  const settings = getSettings();
   const agents = getAgents();
   const defaultId = getDefaultAgentId();
   const providers = listProviders();
+  const channels = settings.channels?.enabled ?? (settings.channels?.slack ? ['slack'] : []);
+  console.log(`Channels: ${channels.length > 0 ? channels.join(', ') : 'none'}`);
   console.log(`Agents: ${Object.keys(agents).length} (default: ${defaultId})`);
   console.log(`Providers: ${providers.join(', ')}`);
 
