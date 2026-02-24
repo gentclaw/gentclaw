@@ -12,6 +12,7 @@ import { dispatchTeamCommand, teamList } from './commands/team.js';
 import { log } from './log.js';
 import { auditLog } from './audit.js';
 import { SCRIPT_DIR } from './paths.js';
+import { parseRef, parseSafeId } from './parse-ref.js';
 import type { CmdResult, CmdContext } from './types.js';
 
 const L = log('commands');
@@ -55,7 +56,7 @@ function agentAdd(args: string, ctx: CmdContext): CmdResult {
   }
 
   const [rawId, name, providerId, ...rest] = parts;
-  const id = rawId!.replace(/^@/, '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  const id = parseSafeId(rawId!);
   if (!id) return { response: 'Invalid agent ID.', skipInvoke: true };
 
   const settings = getSettings();
@@ -85,7 +86,7 @@ function agentAdd(args: string, ctx: CmdContext): CmdResult {
 function agentRemove(args: string, ctx: CmdContext): CmdResult {
   const hasForce = /--force\b/.test(args);
   const cleanArgs = args.replace(/--force\s*/g, '').trim();
-  const id = cleanArgs.replace(/^@/, '').toLowerCase();
+  const id = parseRef(cleanArgs);
   if (!id) return { response: 'Usage: `/agent remove <id> --force`', skipInvoke: true };
 
   const agents = getAgents();
@@ -113,7 +114,7 @@ function agentRemove(args: string, ctx: CmdContext): CmdResult {
 /** /agent provider <id> [provider] [--model M] */
 function agentProvider(args: string, ctx: CmdContext): CmdResult {
   const parts = args.split(/\s+/);
-  const id = (parts[0] || '').replace(/^@/, '').toLowerCase();
+  const id = parseRef(parts[0] || '');
   if (!id) return { response: 'Usage: `/agent provider <id> [provider] [--model M]`', skipInvoke: true };
 
   const agents = getAgents();

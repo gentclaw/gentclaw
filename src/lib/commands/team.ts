@@ -3,16 +3,14 @@
 import { getAgents, getSettings, getTeams, updateSettings } from '../config.js';
 import { validateTeam } from '../team.js';
 import { auditLog } from '../audit.js';
+import { parseRef, parseSafeId } from '../parse-ref.js';
 import type { CmdResult, CmdContext } from '../types.js';
 
 /** Parse "<team> <agent>" args with @-prefix stripping and lowercasing */
 function parseTeamAgentArgs(args: string): { teamId: string; agentId: string } | null {
   const parts = args.split(/\s+/).filter(Boolean);
   if (parts.length < 2) return null;
-  return {
-    teamId: parts[0]!.replace(/^@/, '').toLowerCase(),
-    agentId: parts[1]!.replace(/^@/, '').toLowerCase(),
-  };
+  return { teamId: parseRef(parts[0]!), agentId: parseRef(parts[1]!) };
 }
 
 export function teamList(): CmdResult {
@@ -27,7 +25,7 @@ export function teamList(): CmdResult {
 }
 
 export function teamShow(args: string): CmdResult {
-  const id = args.trim().replace(/^@/, '').toLowerCase();
+  const id = parseRef(args.trim());
   if (!id) return { response: 'Usage: `/team show <id>`', skipInvoke: true };
   const teams = getTeams();
   const t = teams[id];
@@ -51,15 +49,15 @@ export function teamAdd(args: string, ctx: CmdContext): CmdResult {
     return { response: 'Usage: `/team add <id> <display-name> <leader> [agent2...]` (name: no spaces)', skipInvoke: true };
   }
   const [rawId, name, rawLeader, ...extra] = parts;
-  const teamId = rawId!.replace(/^@/, '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  const teamId = parseSafeId(rawId!);
   if (!teamId) return { response: 'Invalid team ID.', skipInvoke: true };
 
   const settings = getSettings();
   if (settings.teams?.[teamId]) return { response: `Team '${teamId}' already exists.`, skipInvoke: true };
   if (settings.agents?.[teamId]) return { response: `Team ID '${teamId}' conflicts with agent ID.`, skipInvoke: true };
 
-  const leader = rawLeader!.replace(/^@/, '').toLowerCase();
-  const agentIds = [leader, ...extra.map(a => a.replace(/^@/, '').toLowerCase())];
+  const leader = parseRef(rawLeader!);
+  const agentIds = [leader, ...extra.map(parseRef)];
   const unique = [...new Set(agentIds)];
   const team = { name: name!, agents: unique, leader };
 
@@ -76,7 +74,7 @@ export function teamAdd(args: string, ctx: CmdContext): CmdResult {
 export function teamRemove(args: string, ctx: CmdContext): CmdResult {
   const hasForce = /--force\b/.test(args);
   const cleanArgs = args.replace(/--force\s*/g, '').trim();
-  const teamId = cleanArgs.replace(/^@/, '').toLowerCase();
+  const teamId = parseRef(cleanArgs);
   if (!teamId) return { response: 'Usage: `/team remove <id> [--force]`', skipInvoke: true };
 
   const teams = getTeams();
