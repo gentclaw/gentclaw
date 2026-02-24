@@ -24,6 +24,23 @@ describe('redactData', () => {
     expect((result.child as Record<string, unknown>).parent).toBe('[circular]');
   });
 
+  it('redacts secrets inside objects nested in arrays', () => {
+    const result = redactData({ items: [{ token: 'xoxb-123-abc-def' }, 'plain'] });
+    const items = result.items as unknown[];
+    expect((items[0] as Record<string, unknown>).token).toBe('[REDACTED]');
+    expect(items[1]).toBe('plain');
+  });
+
+  it('handles circular refs inside arrays', () => {
+    const inner: Record<string, unknown> = { val: 'ok' };
+    const obj: Record<string, unknown> = { arr: [inner] };
+    inner.root = obj;
+    const result = redactData(obj);
+    const arr = result.arr as Record<string, unknown>[];
+    expect(arr[0].val).toBe('ok');
+    expect(arr[0].root).toBe('[circular]');
+  });
+
   it('preserves non-string primitives', () => {
     const result = redactData({ num: 42, bool: true, nil: null });
     expect(result).toEqual({ num: 42, bool: true, nil: null });
