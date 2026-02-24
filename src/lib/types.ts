@@ -102,6 +102,7 @@ export type CmdResult = {
   response: string;
   skipInvoke: boolean; // true = don't send to agent, respond directly
   agent?: string; // override agent routing
+  audited?: boolean; // true = handler already called auditLog, skip dispatch-level audit
 };
 
 export type CmdContext = {

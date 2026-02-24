@@ -17,6 +17,27 @@ import type { CmdResult, CmdContext } from './types.js';
 
 const L = log('commands');
 
+/** Split a command string into args, respecting single/double quotes. */
+function tokenizeArgs(cmd: string): string[] {
+  const tokens: string[] = [];
+  let current = '';
+  let quote = '';
+  for (const ch of cmd) {
+    if (quote) {
+      if (ch === quote) { quote = ''; continue; }
+      current += ch;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (/\s/.test(ch)) {
+      if (current) { tokens.push(current); current = ''; }
+    } else {
+      current += ch;
+    }
+  }
+  if (current) tokens.push(current);
+  return tokens;
+}
+
 type CmdHandler = (args: string, ctx: CmdContext) => CmdResult;
 
 function formatAgentList(): string {
@@ -299,11 +320,11 @@ const handlers: Record<string, CmdHandler> = {
     const validation = validateShellCmd(cmd, getSettings().bash?.allowlist);
     if (!validation.safe) {
       auditLog({ action: 'cmd:bash', sender: ctx.sender, detail: cmd, status: 'denied', reason: validation.reason });
-      return { response: `Denied: ${validation.reason}`, skipInvoke: true };
+      return { response: `Denied: ${validation.reason}`, skipInvoke: true, audited: true };
     }
 
     try {
-      const parts = cmd.split(/\s+/);
+      const parts = tokenizeArgs(cmd);
       const output = execFileSync(parts[0]!, parts.slice(1), {
         encoding: 'utf-8',
         timeout: 10_000,
@@ -385,7 +406,9 @@ export function dispatchCommand(message: string, ctx: CmdContext): CmdResult | n
   if (handler) {
     L.debug('dispatching built-in command', { command: cmdName });
     const result = handler(args, ctx);
-    auditLog({ action: `cmd:${cmdName}`, sender: ctx.sender, detail: args, status: 'allowed' });
+    if (!result.audited) {
+      auditLog({ action: `cmd:${cmdName}`, sender: ctx.sender, detail: args, status: 'allowed' });
+    }
     return result;
   }
 

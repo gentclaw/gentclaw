@@ -37,6 +37,9 @@ function sessionExists(): boolean {
 function ensureSession(): void {
   if (!sessionExists()) {
     tmux('new-session', '-d', '-s', TMUX_SESSION, '-x', '200', '-y', '50');
+    if (!sessionExists()) {
+      throw new RunError('Failed to create tmux session — is tmux installed?');
+    }
     L.info('created tmux session', { session: TMUX_SESSION });
   }
 }
@@ -126,5 +129,10 @@ export async function runInTmux(
   try { unlinkSync(exitFile); } catch { /* ignore */ }
 
   L.info('tmux run completed', { winName, exitCode, len: response.length });
+
+  if (exitCode !== 0 && !response) {
+    throw new RunError(`Process exited with code ${exitCode}`, exitCode);
+  }
+
   return { response, exitCode };
 }

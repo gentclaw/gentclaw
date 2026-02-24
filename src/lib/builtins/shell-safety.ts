@@ -18,6 +18,12 @@ export const SAFE_CMDS = new Set([
 /** Shell metacharacters that enable chaining, piping, or redirection */
 const DANGEROUS_TOKENS = /[|><;`]|\$\(|&&|\|\|/;
 
+/** Interpreters that can execute arbitrary code via flags like -e/-c */
+const INTERPRETERS = new Set(['node', 'python', 'python3', 'ruby', 'perl']);
+
+/** Flags that trigger inline code execution on interpreters */
+const EVAL_FLAGS = new Set(['-e', '-c', '--eval', '--print', '-p']);
+
 type ShellSafetyResult =
   | { safe: true }
   | { safe: false; reason: string };
@@ -37,6 +43,13 @@ export function validateShellCmd(cmd: string, allowlist?: string[]): ShellSafety
   const allowed = allowlist ? new Set(allowlist) : SAFE_CMDS;
   if (!allowed.has(binary)) {
     return { safe: false, reason: `command "${binary}" not in allowlist` };
+  }
+
+  if (INTERPRETERS.has(binary)) {
+    const args = trimmed.split(/\s+/).slice(1);
+    if (args.some(a => EVAL_FLAGS.has(a))) {
+      return { safe: false, reason: `eval flag not allowed for ${binary}` };
+    }
   }
 
   return { safe: true };

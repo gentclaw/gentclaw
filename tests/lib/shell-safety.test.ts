@@ -55,6 +55,20 @@ describe('validateShellCmd', () => {
     expect(validateShellCmd('git status', ['curl']).safe).toBe(false);
   });
 
+  it('blocks eval flags on interpreters', () => {
+    expect(validateShellCmd('node -e "process.exit(1)"').safe).toBe(false);
+    expect(validateShellCmd('python3 -c "import os"').safe).toBe(false);
+    expect(validateShellCmd('ruby -e "puts 1"').safe).toBe(false);
+    expect(validateShellCmd('node --eval "1+1"').safe).toBe(false);
+    expect(validateShellCmd('node --print "1"').safe).toBe(false);
+    expect(validateShellCmd('python3 -p "1"').safe).toBe(false);
+    // non-eval flags still allowed
+    expect(validateShellCmd('node --version')).toEqual({ safe: true });
+    expect(validateShellCmd('python3 script.py')).toEqual({ safe: true });
+    // non-interpreter commands unaffected
+    expect(validateShellCmd('git -c user.name=x status')).toEqual({ safe: true });
+  });
+
   it('has expected safe commands', () => {
     expect(SAFE_CMDS.has('git')).toBe(true);
     expect(SAFE_CMDS.has('ls')).toBe(true);

@@ -45,11 +45,10 @@ echo "Installed: $BIN_DIR/gentclaw"
 # PATH hint — detect shell rc file, print exact command
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
   case "${SHELL:-/bin/bash}" in
-    */zsh)  RC="$HOME/.zshrc" ;;
-    */fish) RC="$HOME/.config/fish/config.fish" ;;
-    *)      RC="$HOME/.bashrc" ;;
+    */zsh)  RC="$HOME/.zshrc"; LINE="export PATH=\"$BIN_DIR:\$PATH\"" ;;
+    */fish) RC="$HOME/.config/fish/config.fish"; LINE="fish_add_path $BIN_DIR" ;;
+    *)      RC="$HOME/.bashrc"; LINE="export PATH=\"$BIN_DIR:\$PATH\"" ;;
   esac
-  LINE="export PATH=\"$BIN_DIR:\$PATH\""
   echo ""
   echo "Add to PATH:"
   echo "  echo '$LINE' >> $RC && source $RC"

@@ -10,12 +10,13 @@ const LEVEL_ORDER: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, erro
 let minLevel: LogLevel = 'info';
 let logFile: string | null = null;
 
-/** Deep-redact all string values in a data object */
+/** Deep-redact all string values in a data object (recurses into arrays) */
 function redactData(data: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(data)) {
     if (typeof v === 'string') out[k] = redactSecrets(v);
-    else if (v && typeof v === 'object' && !Array.isArray(v)) out[k] = redactData(v as Record<string, unknown>);
+    else if (Array.isArray(v)) out[k] = v.map(el => typeof el === 'string' ? redactSecrets(el) : el);
+    else if (v && typeof v === 'object') out[k] = redactData(v as Record<string, unknown>);
     else out[k] = v;
   }
   return out;

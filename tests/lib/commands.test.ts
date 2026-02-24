@@ -224,6 +224,18 @@ describe('dispatchCommand', () => {
     expect(result!.response).toContain('Denied');
   });
 
+  it('blocks interpreter eval flags', () => {
+    const r1 = dispatchCommand('/bash node -e "process.exit(1)"', ctx);
+    expect(r1!.response).toContain('Denied');
+    const r2 = dispatchCommand('/bash python3 -c "import os"', ctx);
+    expect(r2!.response).toContain('Denied');
+  });
+
+  it('denied bash sets audited flag to prevent double audit', () => {
+    const result = dispatchCommand('/bash rm -rf /', ctx);
+    expect(result!.audited).toBe(true);
+  });
+
   // /agent subcommands
   it('handles /agent show with valid id', () => {
     const result = dispatchCommand('/agent show coder', ctx);
