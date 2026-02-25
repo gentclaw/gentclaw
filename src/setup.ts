@@ -175,7 +175,7 @@ async function promptAgent(existingIds: string[]): Promise<{ id: string; agent: 
       console.log(`Agent "${raw}" already exists.`);
       continue;
     }
-    id = raw;
+    id = raw.toLowerCase();
   }
 
   const isDefault = id === defaultAgent.id;

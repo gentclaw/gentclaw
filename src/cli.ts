@@ -81,7 +81,12 @@ function showStatus(): void {
     console.log(`\nRuntime (${staleS}s ago):`);
     console.log(`Queued tasks: ${snapshot.totalQueuedTasks}`);
 
-    for (const [agentId, activity] of Object.entries(snapshot.agents) as [string, { current: { startedAt: number; messagePreview: string } | null; recentHistory: { success: boolean; durationMs: number; finishedAt: number }[] }][]) {
+    type AgentActivity = {
+      current: { startedAt: number; messagePreview: string } | null;
+      recentHistory: { success: boolean; durationMs: number; finishedAt: number }[];
+    };
+
+    for (const [agentId, activity] of Object.entries(snapshot.agents) as [string, AgentActivity][]) {
       if (activity.current) {
         const elapsed = Math.round((Date.now() - activity.current.startedAt) / 1000);
         console.log(`  ${agentId}: busy (${elapsed}s) — ${activity.current.messagePreview}`);
