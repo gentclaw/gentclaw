@@ -149,7 +149,7 @@ src/
 
 ```bash
 npm run build       # src/ → dist/ via tsc
-npm test            # vitest (22 test files)
+npm test            # vitest
 npm run reload      # build + restart daemon
 ```
 
