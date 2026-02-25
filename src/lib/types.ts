@@ -53,7 +53,6 @@ export type CustomCommand = {
 // Settings
 export type Settings = {
   channels?: {
-    enabled?: MsgChannel[];
     slack?: { botToken?: string; appToken?: string };
   };
   providers?: Record<string, Provider>;

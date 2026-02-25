@@ -167,19 +167,24 @@ export async function runAgent(opts: RunOpts): Promise<RunAgentResult> {
     return runCommand(command, cmdArgs, runOpts);
   };
 
+  const toResult = (raw: string): RunAgentResult => ({
+    text: parseProviderOutput(provider, raw),
+    tokens: extractUsage(provider, raw),
+  });
+
   const freshRun = async () => {
     const id = randomUUID();
     setCliSessionId(opts.sessionKey, id);
     const a = buildProviderArgs(provider, { ...common, sessionId: id, isResume: false });
     const r = await execCmd(provider.command, a);
     captureSessionId(r.response);
-    return { text: parseProviderOutput(provider, r.response), tokens: extractUsage(provider, r.response) };
+    return toResult(r.response);
   };
 
   try {
     const result = await execCmd(provider.command, args);
     if (!isResume) captureSessionId(result.response);
-    return { text: parseProviderOutput(provider, result.response), tokens: extractUsage(provider, result.response) };
+    return toResult(result.response);
   } catch (err) {
     if (isResume && err instanceof RunError && /session/i.test(err.message)) {
       L.warn('session resume failed, retrying fresh');

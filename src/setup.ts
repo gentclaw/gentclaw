@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { PATHS } from './lib/paths.js';
 import { ensureDirectories } from './lib/fs-utils.js';
 import { writeSettings, updateSettings, getSettings } from './lib/config.js';
-import type { Settings, Agent, MsgChannel } from './lib/types.js';
+import type { Settings, Agent } from './lib/types.js';
 
 // ANSI colors
 const BLUE = '\x1b[34m';
@@ -125,17 +125,21 @@ function buildDefaultAgent(): { id: string; agent: Agent } {
   };
 }
 
-/** Add channel to enabled list idempotently */
-function addEnabledChannel(settings: Settings, channel: MsgChannel): Settings['channels'] {
-  const existing = settings.channels ?? {};
-  const enabled = existing.enabled ?? [];
-  const deduped = Array.from(new Set([...enabled, channel]));
-  return { ...existing, enabled: deduped };
+/** Ask user whether to use default agent or configure custom. Returns resolved agent. */
+async function askDefaultOrCustomAgent(existingIds: string[]): Promise<{ id: string; agent: Agent }> {
+  const useDefault = await ask('Create default assistant agent? (Y/n)', 'y');
+  if (useDefault.toLowerCase() === 'n' || useDefault.toLowerCase() === 'no') {
+    return promptAgent(existingIds);
+  }
+  const result = buildDefaultAgent();
+  console.log(`${DIM}Using defaults: ${result.id} (${result.agent.provider}/${result.agent.model}) at ${result.agent.cwd}${NC}`);
+  return result;
 }
 
 /** Show next-steps. Omits build step when running from installed binary. */
 function showNextSteps(): void {
-  const runningFromDist = process.argv[1]?.includes('/dist/');
+  const scriptPath = process.argv[1] ?? '';
+  const runningFromDist = basename(resolve(scriptPath, '..')) === 'dist';
   const binaryName = basename(process.argv[1] ?? 'gentclaw').replace(/\.js$/, '');
   const cmd = runningFromDist ? binaryName : 'gentclaw';
 
@@ -201,12 +205,12 @@ async function setupSlack(): Promise<void> {
   if (existsSync(PATHS.settings)) {
     updateSettings(s => ({
       ...s,
-      channels: { ...addEnabledChannel(s, 'slack'), slack: { botToken, appToken } },
+      channels: { ...s.channels, slack: { botToken, appToken } },
     }));
   } else {
     ensureDirectories();
     writeSettings({
-      channels: { enabled: ['slack'], slack: { botToken, appToken } },
+      channels: { slack: { botToken, appToken } },
       devMode: false,
       logging: { verbose: false },
     });
@@ -217,11 +221,7 @@ async function setupSlack(): Promise<void> {
 
   if (!existing.agents || Object.keys(existing.agents).length === 0) {
     console.log(`\nNo agents configured yet.`);
-
-    const useDefault = await ask('Create default assistant agent? (Y/n)', 'y');
-    const isCustom = useDefault.toLowerCase() === 'n' || useDefault.toLowerCase() === 'no';
-    const { id, agent } = isCustom ? await promptAgent([]) : buildDefaultAgent();
-
+    const { id, agent } = await askDefaultOrCustomAgent([]);
     ensureAgentDir(agent.cwd);
     updateSettings(s => ({
       ...s,
@@ -268,22 +268,7 @@ async function fullSetup(): Promise<void> {
 
   // Default agent — offer zero-config path
   console.log('\n--- Agent Configuration ---');
-  const useDefault = await ask('Create default assistant agent? (Y/n)', 'y');
-
-  let agentId: string;
-  let agent: Agent;
-
-  if (useDefault.toLowerCase() === 'n' || useDefault.toLowerCase() === 'no') {
-    const result = await promptAgent([]);
-    agentId = result.id;
-    agent = result.agent;
-  } else {
-    const result = buildDefaultAgent();
-    agentId = result.id;
-    agent = result.agent;
-    console.log(`${DIM}Using defaults: ${agentId} (${agent.provider}/${agent.model}) at ${agent.cwd}${NC}`);
-  }
-
+  const { id: agentId, agent } = await askDefaultOrCustomAgent([]);
   ensureAgentDir(agent.cwd);
 
   // Allowed senders
@@ -292,7 +277,7 @@ async function fullSetup(): Promise<void> {
   const allowedSenders = sendersRaw ? sendersRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
 
   const settings: Settings = {
-    channels: { enabled: ['slack'], slack: { botToken, appToken } },
+    channels: { slack: { botToken, appToken } },
     agents: { [agentId]: agent },
     defaultAgent: agentId,
     allowedSenders: allowedSenders.length > 0 ? allowedSenders : undefined,
