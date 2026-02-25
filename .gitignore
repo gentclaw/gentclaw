@@ -7,6 +7,11 @@ src/**/*.js.map
 *.swp
 .DS_Store
 *.md
+!README.md
+!CONTRIBUTING.md
+!CLAUDE.md
+!LICENSE.md
+!.github/**/*.md
 llm/
 tasks/
 archive/
