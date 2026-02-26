@@ -36,6 +36,17 @@ function removeReaction(channel: string, timestamp: string, name: string): void 
 
 type SlackFile = { name?: string; size?: number; url_private?: string };
 
+type SlackEvent = {
+  bot_id?: string;
+  subtype?: string;
+  user?: string;
+  text?: string;
+  channel?: string;
+  ts?: string;
+  thread_ts?: string;
+  files?: unknown[];
+};
+
 /** Download text content from Slack file attachments. Returns file contents appended to message. */
 async function downloadAttachments(files: unknown[], botToken: string): Promise<string> {
   const parts: string[] = [];
@@ -196,27 +207,16 @@ export async function startSlack(): Promise<void> {
   if (botUserId) botMentionRe = new RegExp(`<@${botUserId}>\\s*`, 'g');
   L.info('authenticated', { botUserId });
 
-  type SlackEvent = {
-    bot_id?: string;
-    subtype?: string;
-    user?: string;
-    text?: string;
-    channel?: string;
-    ts?: string;
-    thread_ts?: string;
-    files?: unknown[];
-  };
-
   const onEvent = async ({ event }: { event: unknown }) => {
     if (!event || typeof event !== 'object') return;
     const ev = event as SlackEvent;
     if (ev.bot_id || ev.subtype) return;
     try {
       await handleEvent(
-        ev.user as string,
+        ev.user ?? '',
         (ev.text ?? '').trim(),
-        ev.channel as string,
-        ev.ts as string,
+        ev.channel ?? '',
+        ev.ts ?? '',
         ev.thread_ts,
         ev.files,
       );
