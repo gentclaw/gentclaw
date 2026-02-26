@@ -1,6 +1,6 @@
 {
   "name": "gentclaw",
-  "version": "0.3.8",
+  "version": "0.3.10",
   "description": "Always-on AI agent daemon — talk to Claude, Gemini, or any CLI model through Slack",
   "license": "MIT",
   "author": "Alex Markovic (https://gentclaw.com)",
@@ -38,11 +38,13 @@
   "type": "module",
   "files": [
     "dist/",
-    "examples/",
-    "install.sh"
+    "examples/"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/cli.js",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "start": "node dist/cli.js start",
