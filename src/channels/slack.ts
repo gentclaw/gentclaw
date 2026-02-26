@@ -194,18 +194,29 @@ export async function startSlack(): Promise<void> {
   botUserId = authResult.user_id as string | undefined;
   L.info('authenticated', { botUserId });
 
+  type SlackEvent = {
+    bot_id?: string;
+    subtype?: string;
+    user?: string;
+    text?: string;
+    channel?: string;
+    ts?: string;
+    thread_ts?: string;
+    files?: unknown[];
+  };
+
   const onEvent = async ({ event }: { event: unknown }) => {
     if (!event || typeof event !== 'object') return;
-    const ev = event as Record<string, unknown>;
-    if (ev['bot_id'] || ev['subtype']) return;
+    const ev = event as SlackEvent;
+    if (ev.bot_id || ev.subtype) return;
     try {
       await handleEvent(
-        ev['user'] as string,
-        (ev['text'] as string ?? '').trim(),
-        ev['channel'] as string,
-        ev['ts'] as string,
-        ev['thread_ts'] as string | undefined,
-        ev['files'] as unknown[] | undefined,
+        ev.user as string,
+        (ev.text ?? '').trim(),
+        ev.channel as string,
+        ev.ts as string,
+        ev.thread_ts,
+        ev.files,
       );
     } catch (err) {
       L.error('event handler crash', { error: errMsg(err) });

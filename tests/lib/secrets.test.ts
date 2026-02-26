@@ -42,11 +42,11 @@ describe('redactSecrets', () => {
 });
 
 describe('SECRET_PATTERNS', () => {
-  it('exports an array of RegExp', () => {
+  it('exports an array of regex source strings', () => {
     expect(SECRET_PATTERNS).toBeInstanceOf(Array);
     for (const pat of SECRET_PATTERNS) {
-      expect(pat).toBeInstanceOf(RegExp);
-      expect(pat.flags).toContain('g');
+      expect(typeof pat).toBe('string');
+      expect(() => new RegExp(pat)).not.toThrow();
     }
   });
 });
