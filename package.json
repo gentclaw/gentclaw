@@ -1,8 +1,40 @@
 {
   "name": "gentclaw",
-  "version": "0.3.3",
+  "version": "0.3.7",
+  "description": "Always-on AI agent daemon — talk to Claude, Gemini, or any CLI model through Slack",
   "license": "MIT",
   "author": "Alex Markovic (https://gentclaw.com)",
+  "homepage": "https://github.com/gentclaw/gentclaw",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gentclaw/gentclaw.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gentclaw/gentclaw/issues"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "daemon",
+    "slack",
+    "claude",
+    "gemini",
+    "chatbot",
+    "multi-agent",
+    "llm",
+    "automation",
+    "ai-agent",
+    "slack-bot",
+    "devops",
+    "claude-code",
+    "system-service"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "gentclaw": "dist/cli.js"
+  },
   "type": "module",
   "scripts": {
     "build": "tsc",

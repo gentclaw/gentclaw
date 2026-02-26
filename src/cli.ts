@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
 import { getSettings, getAgents, getDefaultAgentId } from './lib/config.js';
 import { listProviders } from './lib/providers.js';

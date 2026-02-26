@@ -1,0 +1,85 @@
+{
+  "_comment": "Example gentclaw config — copy to ~/.config/gentclaw/settings.json and fill in tokens",
+
+  "channels": {
+    "slack": {
+      "botToken": "xoxb-your-bot-token",
+      "appToken": "xapp-your-app-token"
+    }
+  },
+
+  "agents": {
+    "assistant": {
+      "name": "Assistant",
+      "provider": "claude",
+      "model": "sonnet",
+      "cwd": "~/gentclaw-workspace/assistant",
+      "systemPrompt": "You are a helpful coding assistant."
+    },
+    "reviewer": {
+      "name": "Reviewer",
+      "provider": "claude",
+      "model": "opus",
+      "cwd": "~/gentclaw-workspace/reviewer",
+      "systemPrompt": "You are a senior code reviewer. Be thorough but concise."
+    },
+    "scout": {
+      "name": "Scout",
+      "provider": "gemini",
+      "model": "flash",
+      "cwd": "~/gentclaw-workspace/scout",
+      "heartbeat": {
+        "enabled": true,
+        "intervalMinutes": 120,
+        "prompt": "Check for new issues in the project and summarize anything urgent."
+      }
+    }
+  },
+
+  "teams": {
+    "backend": {
+      "name": "Backend Team",
+      "agents": ["assistant", "reviewer"],
+      "leader": "assistant"
+    }
+  },
+
+  "defaultAgent": "assistant",
+
+  "allowedSenders": ["U01EXAMPLE1", "U01EXAMPLE2"],
+
+  "commands": {
+    "review": {
+      "description": "Request a code review",
+      "prompt": "Review this code and provide feedback: $ARGUMENTS",
+      "agent": "reviewer"
+    },
+    "summarize": {
+      "description": "Summarize a topic",
+      "prompt": "Provide a concise summary of: $ARGUMENTS"
+    }
+  },
+
+  "hooks": {
+    "preMessage": [
+      {
+        "name": "rate-limit",
+        "builtin": "rate-limit",
+        "config": { "maxPerMinute": 10 }
+      }
+    ],
+    "postMessage": [
+      {
+        "name": "secrets-scan",
+        "builtin": "secrets-scan"
+      }
+    ]
+  },
+
+  "bash": {
+    "allowlist": ["git", "npm", "node", "jq", "curl"]
+  },
+
+  "devMode": false,
+  "logging": { "verbose": false }
+}
