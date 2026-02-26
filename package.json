@@ -27,7 +27,7 @@
     "slack-bot",
     "devops",
     "claude-code",
-    "mcp"
+    "system-service"
   ],
   "engines": {
     "node": ">=20"
