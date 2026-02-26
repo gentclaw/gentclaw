@@ -5,8 +5,8 @@ import { activeTasks } from './sequencer.js';
 const MAX_HISTORY = 10;
 const MAX_PREVIEW = 80;
 
-type ActiveTask = { agentId: string; sessionKey: string; messagePreview: string; startedAt: number };
-type CompletedTask = ActiveTask & { finishedAt: number; durationMs: number; success: boolean };
+export type ActiveTask = { agentId: string; sessionKey: string; messagePreview: string; startedAt: number };
+export type CompletedTask = ActiveTask & { finishedAt: number; durationMs: number; success: boolean };
 export type AgentActivity = { agentId: string; current: ActiveTask | null; recentHistory: CompletedTask[] };
 export type StatusSnapshot = { agents: Record<string, AgentActivity>; totalQueuedTasks: number; timestamp: number };
 

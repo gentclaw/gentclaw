@@ -5,6 +5,7 @@ import { listProviders } from './lib/providers.js';
 import { PATHS } from './lib/paths.js';
 import { installService, uninstallService, serviceStatus } from './lib/service.js';
 import { DEFAULT_HEARTBEAT_INTERVAL_MIN } from './lib/constants.js';
+import type { AgentActivity, StatusSnapshot } from './lib/tracker.js';
 
 const command = process.argv[2];
 
@@ -77,17 +78,12 @@ function showStatus(): void {
   }
 
   try {
-    const snapshot = JSON.parse(readFileSync(PATHS.status, 'utf-8'));
+    const snapshot = JSON.parse(readFileSync(PATHS.status, 'utf-8')) as StatusSnapshot;
     const staleS = Math.round((Date.now() - snapshot.timestamp) / 1000);
     console.log(`\nRuntime (${staleS}s ago):`);
     console.log(`Queued tasks: ${snapshot.totalQueuedTasks}`);
 
-    type AgentActivity = {
-      current: { startedAt: number; messagePreview: string } | null;
-      recentHistory: { success: boolean; durationMs: number; finishedAt: number }[];
-    };
-
-    for (const [agentId, activity] of Object.entries(snapshot.agents) as [string, AgentActivity][]) {
+    for (const [agentId, activity] of Object.entries(snapshot.agents)) {
       if (activity.current) {
         const elapsed = Math.round((Date.now() - activity.current.startedAt) / 1000);
         console.log(`  ${agentId}: busy (${elapsed}s) — ${activity.current.messagePreview}`);
@@ -154,13 +150,12 @@ async function runHeartbeat(): Promise<void> {
   }
 }
 
+function runAsync(label: string, fn: () => Promise<void>): void {
+  fn().catch(err => { console.error(`${label} failed:`, err); process.exit(1); });
+}
+
 const commands: Record<string, () => void> = {
-  start: () => {
-    startProcess().catch(err => {
-      console.error('Failed to start:', err);
-      process.exit(1);
-    });
-  },
+  start: () => runAsync('Start', startProcess),
   config: showConfig,
   agents: showAgents,
   providers: showProviders,
@@ -168,44 +163,31 @@ const commands: Record<string, () => void> = {
   home: () => console.log(PATHS.home),
   help: showHelp,
   setup: () => {
-    const subcmd = process.argv[3]; // e.g. `gentclaw setup slack`
-    import('./setup.js').then(m => m.setup(subcmd)).catch(err => {
-      console.error('Setup failed:', err);
-      process.exit(1);
-    });
+    const subcmd = process.argv[3];
+    runAsync('Setup', () => import('./setup.js').then(m => m.setup(subcmd)));
   },
-  install: () => {
-    (async () => {
+  install: () => runAsync('Install', async () => {
+    if (!existsSync(PATHS.settings)) {
+      console.log('No settings found — running setup wizard first...');
+      await import('./setup.js');
       if (!existsSync(PATHS.settings)) {
-        console.log('No settings found — running setup wizard first...');
-        await import('./setup.js');
-        if (!existsSync(PATHS.settings)) {
-          console.error('Setup cancelled — no settings.json');
-          process.exit(1);
-        }
+        console.error('Setup cancelled — no settings.json');
+        process.exit(1);
       }
-      installService();
-      console.log('Service registered. Waiting 3s to verify...');
-      await new Promise(r => setTimeout(r, 3_000));
-      const s = serviceStatus();
-      console.log(s.running ? 'Service is running.' : 'Service may not have started — check logs.');
-      console.log(`\nLogs: ${PATHS.logs}/`);
-      console.log('Status: node dist/cli.js status');
-    })().catch(err => {
-      console.error('Install failed:', err);
-      process.exit(1);
-    });
-  },
+    }
+    installService();
+    console.log('Service registered. Waiting 3s to verify...');
+    await new Promise(r => setTimeout(r, 3_000));
+    const s = serviceStatus();
+    console.log(s.running ? 'Service is running.' : 'Service may not have started — check logs.');
+    console.log(`\nLogs: ${PATHS.logs}/`);
+    console.log('Status: node dist/cli.js status');
+  }),
   uninstall: () => {
     uninstallService();
     console.log('Service removed.');
   },
-  heartbeat: () => {
-    runHeartbeat().catch(err => {
-      console.error('Heartbeat failed:', err);
-      process.exit(1);
-    });
-  },
+  heartbeat: () => runAsync('Heartbeat', runHeartbeat),
 };
 
 if (!command || command === '--help' || command === '-h') {

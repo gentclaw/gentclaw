@@ -12,12 +12,15 @@ export const SECRET_PATTERNS: readonly string[] = [
   'AIza[A-Za-z0-9_-]{35}',                                        // Google/Gemini API key
 ];
 
-/** Pre-joined source — combined once at load, fresh RegExp per call avoids lastIndex state. */
-const COMBINED_SOURCE = SECRET_PATTERNS.join('|');
+/**
+ * Pre-compiled combined regex — safe as module-level /g because String.prototype.replace()
+ * always starts matching from index 0 regardless of lastIndex state.
+ */
+const COMBINED_RE = new RegExp(SECRET_PATTERNS.join('|'), 'g');
 
 const REDACTED = '[REDACTED]';
 
-/** Replace all secret patterns in a string. Stateless — fresh RegExp per call. */
+/** Replace all secret patterns in a string. */
 export function redactSecrets(text: string): string {
-  return text.replace(new RegExp(COMBINED_SOURCE, 'g'), REDACTED);
+  return text.replace(COMBINED_RE, REDACTED);
 }

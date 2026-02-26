@@ -7,6 +7,7 @@ import type { CustomCommand } from './types.js';
 /** Built-in command names that cannot be overridden by custom commands or skills. */
 const RESERVED = new Set([
   'help', 'status', 'model', 'agent', 'agents', 'default', 'reset', 'stop', 'reload',
+  'bash', 'memory', 'team', 'teams',
 ]);
 
 type CustomCmdResult = {

@@ -18,6 +18,7 @@ const REACT_HOLD_MS = 3_000;
 
 let app: App;
 let botUserId: string | undefined;
+let botMentionRe: RegExp | undefined;
 
 /** Add a Slack reaction (fire-and-forget). */
 function addReaction(channel: string, timestamp: string, name: string): void {
@@ -108,8 +109,8 @@ async function handleEvent(
 
   // Strip bot mention from text if present
   let cleanText = text || '';
-  if (botUserId) {
-    cleanText = cleanText.replace(new RegExp(`<@${botUserId}>\\s*`, 'g'), '').trim();
+  if (botMentionRe) {
+    cleanText = cleanText.replace(botMentionRe, '').trim();
   }
 
   // Download file attachments and append to message
@@ -192,6 +193,7 @@ export async function startSlack(): Promise<void> {
   // Resolve bot user ID for self-mention filtering
   const authResult = await app.client.auth.test({ token: botToken });
   botUserId = authResult.user_id as string | undefined;
+  if (botUserId) botMentionRe = new RegExp(`<@${botUserId}>\\s*`, 'g');
   L.info('authenticated', { botUserId });
 
   type SlackEvent = {
