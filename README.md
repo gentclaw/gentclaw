@@ -7,6 +7,7 @@
   <a href="https://github.com/gentclaw/gentclaw/actions/workflows/ci.yml"><img src="https://github.com/gentclaw/gentclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License"></a>
   <a href="https://www.npmjs.com/package/gentclaw"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node ≥20"></a>
+  <a href="https://github.com/gentclaw/gentclaw/stargazers"><img src="https://img.shields.io/github/stars/gentclaw/gentclaw?style=social" alt="GitHub Stars"></a>
 </p>
 
 ---
@@ -156,6 +157,10 @@ npm run reload      # build + restart daemon
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, architecture overview, and PR guidelines.
+
+Looking for a place to start? Check out issues labeled [`good first issue`](https://github.com/gentclaw/gentclaw/labels/good%20first%20issue).
+
+If gentclaw is useful to you, consider giving it a [star](https://github.com/gentclaw/gentclaw) — it helps others discover the project.
 
 ## License
 

@@ -11,6 +11,7 @@ src/**/*.js.map
 !CONTRIBUTING.md
 !CLAUDE.md
 !LICENSE.md
+!SECURITY.md
 !.github/**/*.md
 llm/
 tasks/
