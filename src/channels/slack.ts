@@ -18,6 +18,7 @@ const REACT_HOLD_MS = 3_000;
 
 let app: App;
 let botUserId: string | undefined;
+let botMentionRe: RegExp | undefined;
 
 /** Add a Slack reaction (fire-and-forget). */
 function addReaction(channel: string, timestamp: string, name: string): void {
@@ -34,6 +35,17 @@ function removeReaction(channel: string, timestamp: string, name: string): void 
 }
 
 type SlackFile = { name?: string; size?: number; url_private?: string };
+
+type SlackEvent = {
+  bot_id?: string;
+  subtype?: string;
+  user?: string;
+  text?: string;
+  channel?: string;
+  ts?: string;
+  thread_ts?: string;
+  files?: unknown[];
+};
 
 /** Download text content from Slack file attachments. Returns file contents appended to message. */
 async function downloadAttachments(files: unknown[], botToken: string): Promise<string> {
@@ -108,8 +120,8 @@ async function handleEvent(
 
   // Strip bot mention from text if present
   let cleanText = text || '';
-  if (botUserId) {
-    cleanText = cleanText.replace(new RegExp(`<@${botUserId}>\\s*`, 'g'), '').trim();
+  if (botMentionRe) {
+    cleanText = cleanText.replace(botMentionRe, '').trim();
   }
 
   // Download file attachments and append to message
@@ -192,18 +204,8 @@ export async function startSlack(): Promise<void> {
   // Resolve bot user ID for self-mention filtering
   const authResult = await app.client.auth.test({ token: botToken });
   botUserId = authResult.user_id as string | undefined;
+  if (botUserId) botMentionRe = new RegExp(`<@${botUserId}>\\s*`, 'g');
   L.info('authenticated', { botUserId });
-
-  type SlackEvent = {
-    bot_id?: string;
-    subtype?: string;
-    user?: string;
-    text?: string;
-    channel?: string;
-    ts?: string;
-    thread_ts?: string;
-    files?: unknown[];
-  };
 
   const onEvent = async ({ event }: { event: unknown }) => {
     if (!event || typeof event !== 'object') return;
@@ -211,10 +213,10 @@ export async function startSlack(): Promise<void> {
     if (ev.bot_id || ev.subtype) return;
     try {
       await handleEvent(
-        ev.user as string,
+        ev.user ?? '',
         (ev.text ?? '').trim(),
-        ev.channel as string,
-        ev.ts as string,
+        ev.channel ?? '',
+        ev.ts ?? '',
         ev.thread_ts,
         ev.files,
       );

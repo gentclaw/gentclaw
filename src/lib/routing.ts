@@ -1,7 +1,7 @@
 import { getAgents, getDefaultAgentId, getTeams } from './config.js';
 import { getSessionAgent } from './sessions.js';
 import { RoutingError } from './errors.js';
-import type { InboundMsg, Agent, Team } from './types.js';
+import type { InboundMsg } from './types.js';
 import { log } from './log.js';
 
 const L = log('routing');
@@ -28,44 +28,50 @@ function parseDirective(text: string): Directive {
   return { kind: 'mention', agentRef: ref, body: trimmed.slice(i).trimStart() };
 }
 
-/** Cached name→id index with fingerprint-based invalidation. */
-let nameIndex: Map<string, string> | null = null;
-let indexFP = '';
-
-function getNameIndex(agents: Record<string, Agent>): Map<string, string> {
-  const fp = Object.entries(agents).map(([id, c]) => `${id}:${c.name}`).sort().join('|');
-  if (nameIndex && indexFP === fp) return nameIndex;
-  const idx = new Map<string, string>();
-  for (const [id, cfg] of Object.entries(agents)) {
-    idx.set(id.toLowerCase(), id);
-    if (cfg.name) idx.set(cfg.name.toLowerCase(), id);
-  }
-  nameIndex = idx;
-  indexFP = fp;
-  return idx;
+/** Fingerprint-based cached index — rebuilds only when data changes. */
+function createCachedIndex<T>(
+  fingerprint: () => string,
+  build: () => Map<string, T>,
+): () => Map<string, T> {
+  let cached: Map<string, T> | null = null;
+  let fp = '';
+  return () => {
+    const newFp = fingerprint();
+    if (cached && fp === newFp) return cached;
+    cached = build();
+    fp = newFp;
+    return cached;
+  };
 }
 
-/** Build team name/id → {teamId, leaderId} index. IDs take priority over display names. */
+const getNameIndex = createCachedIndex<string>(
+  () => Object.entries(getAgents()).map(([id, c]) => `${id}:${c.name}`).sort().join('|'),
+  () => {
+    const idx = new Map<string, string>();
+    for (const [id, cfg] of Object.entries(getAgents())) {
+      idx.set(id.toLowerCase(), id);
+      if (cfg.name) idx.set(cfg.name.toLowerCase(), id);
+    }
+    return idx;
+  },
+);
+
 type TeamEntry = { teamId: string; leaderId: string };
-let teamIndex: Map<string, TeamEntry> | null = null;
-let teamIndexFP = '';
 
-function getTeamIndex(teams: Record<string, Team>): Map<string, TeamEntry> {
-  const fp = Object.entries(teams).map(([id, t]) => `${id}:${t.name}:${t.leader}:${t.agents.join(',')}`).sort().join('|');
-  if (teamIndex && teamIndexFP === fp) return teamIndex;
-  const idx = new Map<string, TeamEntry>();
-  // Names first so IDs override on collision
-  for (const [id, t] of Object.entries(teams)) idx.set(t.name.toLowerCase(), { teamId: id, leaderId: t.leader });
-  for (const [id, t] of Object.entries(teams)) idx.set(id.toLowerCase(), { teamId: id, leaderId: t.leader });
-  teamIndex = idx;
-  teamIndexFP = fp;
-  return idx;
-}
+/** IDs take priority over display names (names inserted first, IDs override on collision). */
+const getTeamIndex = createCachedIndex<TeamEntry>(
+  () => Object.entries(getTeams()).map(([id, t]) => `${id}:${t.name}:${t.leader}:${t.agents.join(',')}`).sort().join('|'),
+  () => {
+    const idx = new Map<string, TeamEntry>();
+    for (const [id, t] of Object.entries(getTeams())) idx.set(t.name.toLowerCase(), { teamId: id, leaderId: t.leader });
+    for (const [id, t] of Object.entries(getTeams())) idx.set(id.toLowerCase(), { teamId: id, leaderId: t.leader });
+    return idx;
+  },
+);
 
 /** 4-priority routing: pre-routed → @mention (agent/team) → sticky session → default */
 export function resolveRoute(msg: InboundMsg): RouteResult {
   const agents = getAgents();
-  const teams = getTeams();
 
   // 1. Pre-routed
   if (msg.agent && agents[msg.agent]) {
@@ -79,14 +85,14 @@ export function resolveRoute(msg: InboundMsg): RouteResult {
     const ref = directive.agentRef.toLowerCase();
 
     // Agent match takes priority
-    const agentId = getNameIndex(agents).get(ref);
+    const agentId = getNameIndex().get(ref);
     if (agentId) {
       L.debug('mention-routed', { agentId, ref: directive.agentRef });
       return { agentId, message: directive.body, routeType: 'mention' };
     }
 
     // Team match — resolve to leader
-    const entry = getTeamIndex(teams).get(ref);
+    const entry = getTeamIndex().get(ref);
     if (entry && agents[entry.leaderId]) {
       L.debug('team-routed', { agentId: entry.leaderId, teamId: entry.teamId });
       return { agentId: entry.leaderId, message: directive.body, routeType: 'mention', teamId: entry.teamId };
