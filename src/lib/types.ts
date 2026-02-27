@@ -105,6 +105,11 @@ export type CmdResult = {
   audited?: boolean; // true = handler already called auditLog, skip dispatch-level audit
 };
 
+/** Shorthand for the most common command return: respond directly without invoking an agent. */
+export function cmdReply(response: string, extra?: Partial<CmdResult>): CmdResult {
+  return { response, skipInvoke: true, ...extra };
+}
+
 export type CmdContext = {
   sessionKey: string;
   sender: string;

@@ -53,7 +53,7 @@ export function resetRateLimits(): void {
   windows.clear();
 }
 
-/** Number of tracked senders (for testing). */
+/** @internal Test-only — number of tracked senders. */
 export function getWindowCount(): number {
   return windows.size;
 }

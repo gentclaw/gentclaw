@@ -4,6 +4,7 @@ import { getAgents, getSettings, getTeams, updateSettings } from '../config.js';
 import { validateTeam } from '../team.js';
 import { auditLog } from '../audit.js';
 import { parseRef, parseSafeId } from '../parse-ref.js';
+import { cmdReply } from '../types.js';
 import type { CmdResult, CmdContext } from '../types.js';
 
 /** Parse "<team> <agent>" args with @-prefix stripping and lowercasing */
@@ -16,20 +17,20 @@ function parseTeamAgentArgs(args: string): { teamId: string; agentId: string } |
 export function teamList(): CmdResult {
   const teams = getTeams();
   const ids = Object.keys(teams);
-  if (!ids.length) return { response: 'No teams configured.', skipInvoke: true };
+  if (!ids.length) return cmdReply('No teams configured.');
   const lines = ['*Teams:*'];
   for (const [id, t] of Object.entries(teams)) {
     lines.push(`*@${id}* — ${t.name} (leader: @${t.leader}, agents: ${t.agents.join(', ')})`);
   }
-  return { response: lines.join('\n'), skipInvoke: true };
+  return cmdReply(lines.join('\n'));
 }
 
 export function teamShow(args: string): CmdResult {
   const id = parseRef(args.trim());
-  if (!id) return { response: 'Usage: `/team show <id>`', skipInvoke: true };
+  if (!id) return cmdReply('Usage: `/team show <id>`');
   const teams = getTeams();
   const t = teams[id];
-  if (!t) return { response: `Team '${id}' not found.`, skipInvoke: true };
+  if (!t) return cmdReply(`Team '${id}' not found.`);
   const agents = getAgents();
   const lines = [
     `*@${id}* — ${t.name}`,
@@ -39,22 +40,22 @@ export function teamShow(args: string): CmdResult {
       return cfg ? `@${a} (${cfg.provider}/${cfg.model})` : `@${a} (missing)`;
     }).join(', ')}`,
   ];
-  return { response: lines.join('\n'), skipInvoke: true };
+  return cmdReply(lines.join('\n'));
 }
 
 /** /team add <id> <display-name> <leader> [agent2...] — name must be single word (no spaces) */
 export function teamAdd(args: string, ctx: CmdContext): CmdResult {
   const parts = args.split(/\s+/).filter(Boolean);
   if (parts.length < 3) {
-    return { response: 'Usage: `/team add <id> <display-name> <leader> [agent2...]` (name: no spaces)', skipInvoke: true };
+    return cmdReply('Usage: `/team add <id> <display-name> <leader> [agent2...]` (name: no spaces)');
   }
   const [rawId, name, rawLeader, ...extra] = parts;
   const teamId = parseSafeId(rawId!);
-  if (!teamId) return { response: 'Invalid team ID.', skipInvoke: true };
+  if (!teamId) return cmdReply('Invalid team ID.');
 
   const settings = getSettings();
-  if (settings.teams?.[teamId]) return { response: `Team '${teamId}' already exists.`, skipInvoke: true };
-  if (settings.agents?.[teamId]) return { response: `Team ID '${teamId}' conflicts with agent ID.`, skipInvoke: true };
+  if (settings.teams?.[teamId]) return cmdReply(`Team '${teamId}' already exists.`);
+  if (settings.agents?.[teamId]) return cmdReply(`Team ID '${teamId}' conflicts with agent ID.`);
 
   const leader = parseRef(rawLeader!);
   const agentIds = [leader, ...extra.map(parseRef)];
@@ -63,11 +64,11 @@ export function teamAdd(args: string, ctx: CmdContext): CmdResult {
 
   const agents = settings.agents ?? {};
   const err = validateTeam(team, agents);
-  if (err) return { response: err, skipInvoke: true };
+  if (err) return cmdReply(err);
 
   updateSettings(s => ({ ...s, teams: { ...s.teams, [teamId]: team } }));
   auditLog({ action: 'cmd:team-add', sender: ctx.sender, detail: args, status: 'allowed' });
-  return { response: `Team '${teamId}' created (${unique.length} agents, leader: @${leader}).`, skipInvoke: true };
+  return cmdReply(`Team '${teamId}' created (${unique.length} agents, leader: @${leader}).`);
 }
 
 /** /team remove <id> [--force] */
@@ -75,13 +76,13 @@ export function teamRemove(args: string, ctx: CmdContext): CmdResult {
   const hasForce = /--force\b/.test(args);
   const cleanArgs = args.replace(/--force\s*/g, '').trim();
   const teamId = parseRef(cleanArgs);
-  if (!teamId) return { response: 'Usage: `/team remove <id> [--force]`', skipInvoke: true };
+  if (!teamId) return cmdReply('Usage: `/team remove <id> [--force]`');
 
   const teams = getTeams();
-  if (!teams[teamId]) return { response: `Team '${teamId}' not found.`, skipInvoke: true };
+  if (!teams[teamId]) return cmdReply(`Team '${teamId}' not found.`);
 
   if (!hasForce) {
-    return { response: `Remove team '${teamId}' (${teams[teamId]!.name})?\nUse \`/team remove ${teamId} --force\` to confirm.`, skipInvoke: true };
+    return cmdReply(`Remove team '${teamId}' (${teams[teamId]!.name})?\nUse \`/team remove ${teamId} --force\` to confirm.`);
   }
 
   updateSettings(s => {
@@ -91,21 +92,21 @@ export function teamRemove(args: string, ctx: CmdContext): CmdResult {
   });
 
   auditLog({ action: 'cmd:team-remove', sender: ctx.sender, detail: teamId, status: 'allowed' });
-  return { response: `Team '${teamId}' removed.`, skipInvoke: true };
+  return cmdReply(`Team '${teamId}' removed.`);
 }
 
 /** /team addagent <team> <agent> */
 export function teamAddAgent(args: string, ctx: CmdContext): CmdResult {
   const parsed = parseTeamAgentArgs(args);
-  if (!parsed) return { response: 'Usage: `/team addagent <team> <agent>`', skipInvoke: true };
+  if (!parsed) return cmdReply('Usage: `/team addagent <team> <agent>`');
   const { teamId, agentId } = parsed;
 
   const teams = getTeams();
-  if (!teams[teamId]) return { response: `Team '${teamId}' not found.`, skipInvoke: true };
+  if (!teams[teamId]) return cmdReply(`Team '${teamId}' not found.`);
 
   const agents = getAgents();
-  if (!agents[agentId]) return { response: `Agent '${agentId}' not found.`, skipInvoke: true };
-  if (teams[teamId]!.agents.includes(agentId)) return { response: `Agent '${agentId}' is already in team '${teamId}'.`, skipInvoke: true };
+  if (!agents[agentId]) return cmdReply(`Agent '${agentId}' not found.`);
+  if (teams[teamId]!.agents.includes(agentId)) return cmdReply(`Agent '${agentId}' is already in team '${teamId}'.`);
 
   updateSettings(s => {
     const team = { ...s.teams![teamId]!, agents: [...s.teams![teamId]!.agents, agentId] };
@@ -113,21 +114,21 @@ export function teamAddAgent(args: string, ctx: CmdContext): CmdResult {
   });
 
   auditLog({ action: 'cmd:team-addagent', sender: ctx.sender, detail: args, status: 'allowed' });
-  return { response: `Added @${agentId} to team '${teamId}'.`, skipInvoke: true };
+  return cmdReply(`Added @${agentId} to team '${teamId}'.`);
 }
 
 /** /team setleader <team> <agent> */
 export function teamSetLeader(args: string, ctx: CmdContext): CmdResult {
   const parsed = parseTeamAgentArgs(args);
-  if (!parsed) return { response: 'Usage: `/team setleader <team> <agent>`', skipInvoke: true };
+  if (!parsed) return cmdReply('Usage: `/team setleader <team> <agent>`');
   const { teamId, agentId } = parsed;
 
   const teams = getTeams();
-  if (!teams[teamId]) return { response: `Team '${teamId}' not found.`, skipInvoke: true };
+  if (!teams[teamId]) return cmdReply(`Team '${teamId}' not found.`);
 
   const team = teams[teamId]!;
-  if (!team.agents.includes(agentId)) return { response: `Agent '${agentId}' is not in team '${teamId}'.`, skipInvoke: true };
-  if (team.leader === agentId) return { response: `Agent '${agentId}' is already leader of '${teamId}'.`, skipInvoke: true };
+  if (!team.agents.includes(agentId)) return cmdReply(`Agent '${agentId}' is not in team '${teamId}'.`);
+  if (team.leader === agentId) return cmdReply(`Agent '${agentId}' is already leader of '${teamId}'.`);
 
   updateSettings(s => ({
     ...s,
@@ -135,22 +136,22 @@ export function teamSetLeader(args: string, ctx: CmdContext): CmdResult {
   }));
 
   auditLog({ action: 'cmd:team-setleader', sender: ctx.sender, detail: args, status: 'allowed' });
-  return { response: `Team '${teamId}' leader changed to @${agentId}.`, skipInvoke: true };
+  return cmdReply(`Team '${teamId}' leader changed to @${agentId}.`);
 }
 
 /** /team removeagent <team> <agent> */
 export function teamRemoveAgent(args: string, ctx: CmdContext): CmdResult {
   const parsed = parseTeamAgentArgs(args);
-  if (!parsed) return { response: 'Usage: `/team removeagent <team> <agent>`', skipInvoke: true };
+  if (!parsed) return cmdReply('Usage: `/team removeagent <team> <agent>`');
   const { teamId, agentId } = parsed;
 
   const teams = getTeams();
-  if (!teams[teamId]) return { response: `Team '${teamId}' not found.`, skipInvoke: true };
+  if (!teams[teamId]) return cmdReply(`Team '${teamId}' not found.`);
 
   const team = teams[teamId]!;
-  if (!team.agents.includes(agentId)) return { response: `Agent '${agentId}' is not in team '${teamId}'.`, skipInvoke: true };
-  if (team.leader === agentId) return { response: 'Cannot remove leader. Use `/team setleader` first or remove the team.', skipInvoke: true };
-  if (team.agents.length <= 1) return { response: 'Cannot remove last agent from team. Remove the team instead.', skipInvoke: true };
+  if (!team.agents.includes(agentId)) return cmdReply(`Agent '${agentId}' is not in team '${teamId}'.`);
+  if (team.leader === agentId) return cmdReply('Cannot remove leader. Use `/team setleader` first or remove the team.');
+  if (team.agents.length <= 1) return cmdReply('Cannot remove last agent from team. Remove the team instead.');
 
   updateSettings(s => {
     const updated = { ...s.teams![teamId]!, agents: s.teams![teamId]!.agents.filter(a => a !== agentId) };
@@ -158,7 +159,7 @@ export function teamRemoveAgent(args: string, ctx: CmdContext): CmdResult {
   });
 
   auditLog({ action: 'cmd:team-removeagent', sender: ctx.sender, detail: args, status: 'allowed' });
-  return { response: `Removed @${agentId} from team '${teamId}'.`, skipInvoke: true };
+  return cmdReply(`Removed @${agentId} from team '${teamId}'.`);
 }
 
 /** Dispatch /team subcommands */

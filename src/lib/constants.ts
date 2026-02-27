@@ -25,6 +25,8 @@ export const SERVICE_LABEL = 'com.gentclaw.agent';
  * Explicit env allowlist for child processes — never spread process.env.
  * Captured once at module load (daemon env never mutates at runtime).
  * CLAUDECODE intentionally omitted — triggers nested session detection.
+ * CLAUDE_CODE_ENTRYPOINT hardcoded to 'cli' — launchd env lacks this var,
+ * causing SDK auth failure ("Not logged in") when inherited as empty string.
  */
 export const SPAWN_ENV = {
   PATH: process.env.PATH || '',

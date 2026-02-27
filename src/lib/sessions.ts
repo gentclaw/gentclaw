@@ -54,7 +54,7 @@ export function getCliSessionId(sessionKey: string): string | undefined {
   return readSession(sessionKey)?.cliSessionId;
 }
 
-/** Set the CLI session ID for a session. Creates a stub session if none exists yet (race with pipeline). */
+/** Set the CLI session ID for a session. Creates a stub session if none exists yet — tmux provider writes cliSessionId before pipeline creates the full session record. */
 export function setCliSessionId(sessionKey: string, cliSessionId: string): void {
   const now = Date.now();
   const existing = readSession(sessionKey);
@@ -79,7 +79,7 @@ export function stopFlagPath(sessionKey: string): string {
   return join(PATHS.flags, `stop-${sanitize(sessionKey)}`);
 }
 
-/** Probabilistic cleanup of expired sessions. */
+/** Probabilistic cleanup of expired sessions. Uses random sampling (5% per message) instead of timers — avoids extra interval management in the daemon. */
 export function maybeCleanupSessions(): void {
   if (Math.random() > SESSION_CLEANUP_PROB) return;
 

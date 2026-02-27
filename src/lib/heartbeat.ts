@@ -78,7 +78,7 @@ export function stopHeartbeat(): void {
   timers = [];
 }
 
-/** Get active heartbeat agent IDs (for status display). */
+/** @internal Test-only — get active heartbeat agent IDs. */
 export function heartbeatAgents(): string[] {
   return timers.map(t => t.agentId);
 }

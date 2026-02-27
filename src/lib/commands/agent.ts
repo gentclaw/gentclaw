@@ -4,6 +4,7 @@ import { getAgents, getDefaultAgentId, getSettings, updateSettings } from '../co
 import { listProviders, getProvider } from '../providers.js';
 import { auditLog } from '../audit.js';
 import { parseRef, parseSafeId } from '../parse-ref.js';
+import { cmdReply } from '../types.js';
 import type { CmdResult, CmdContext } from '../types.js';
 
 export function formatAgentList(): string {
@@ -18,11 +19,11 @@ export function formatAgentList(): string {
 /** /agent show <id> */
 function agentShow(args: string): CmdResult {
   const id = args.trim().toLowerCase();
-  if (!id) return { response: 'Usage: `/agent show <id>`', skipInvoke: true };
+  if (!id) return cmdReply('Usage: `/agent show <id>`');
 
   const agents = getAgents();
   const agent = agents[id];
-  if (!agent) return { response: `Agent '${id}' not found.`, skipInvoke: true };
+  if (!agent) return cmdReply(`Agent '${id}' not found.`);
 
   const defaultId = getDefaultAgentId();
   const lines = [
@@ -32,28 +33,28 @@ function agentShow(args: string): CmdResult {
   ];
   if (agent.systemPrompt) lines.push('Has custom system prompt');
   if (defaultId === id) lines.push('(default agent)');
-  return { response: lines.join('\n'), skipInvoke: true };
+  return cmdReply(lines.join('\n'));
 }
 
 /** /agent add <id> <name> <provider> [model] */
 function agentAdd(args: string, ctx: CmdContext): CmdResult {
   const parts = args.split(/\s+/);
   if (parts.length < 3) {
-    return { response: 'Usage: `/agent add <id> <name> <provider> [model]`', skipInvoke: true };
+    return cmdReply('Usage: `/agent add <id> <name> <provider> [model]`');
   }
 
   const [rawId, name, providerId, ...rest] = parts;
   const id = parseSafeId(rawId!);
-  if (!id) return { response: 'Invalid agent ID.', skipInvoke: true };
+  if (!id) return cmdReply('Invalid agent ID.');
 
   const settings = getSettings();
   if (settings.agents?.[id]) {
-    return { response: `Agent '${id}' already exists.`, skipInvoke: true };
+    return cmdReply(`Agent '${id}' already exists.`);
   }
 
   let providerDef;
   try { providerDef = getProvider(providerId!); } catch {
-    return { response: `Unknown provider: ${providerId}. Available: ${listProviders().join(', ')}`, skipInvoke: true };
+    return cmdReply(`Unknown provider: ${providerId}. Available: ${listProviders().join(', ')}`);
   }
 
   const model = rest[0] || providerDef.defaultModel;
@@ -66,7 +67,7 @@ function agentAdd(args: string, ctx: CmdContext): CmdResult {
   }));
 
   auditLog({ action: 'cmd:agent-add', sender: ctx.sender, detail: args, status: 'allowed' });
-  return { response: `Agent '${id}' created (${providerId}/${model}).`, skipInvoke: true };
+  return cmdReply(`Agent '${id}' created (${providerId}/${model}).`);
 }
 
 /** /agent remove <id> [--force] */
@@ -74,13 +75,13 @@ function agentRemove(args: string, ctx: CmdContext): CmdResult {
   const hasForce = /--force\b/.test(args);
   const cleanArgs = args.replace(/--force\s*/g, '').trim();
   const id = parseRef(cleanArgs);
-  if (!id) return { response: 'Usage: `/agent remove <id> --force`', skipInvoke: true };
+  if (!id) return cmdReply('Usage: `/agent remove <id> --force`');
 
   const agents = getAgents();
-  if (!agents[id]) return { response: `Agent '${id}' not found.`, skipInvoke: true };
+  if (!agents[id]) return cmdReply(`Agent '${id}' not found.`);
 
   if (!hasForce) {
-    return { response: `Remove '${id}' (${agents[id]!.name})?\nUse \`/agent remove ${id} --force\` to confirm.`, skipInvoke: true };
+    return cmdReply(`Remove '${id}' (${agents[id]!.name})?\nUse \`/agent remove ${id} --force\` to confirm.`);
   }
 
   const settings = getSettings();
@@ -95,26 +96,26 @@ function agentRemove(args: string, ctx: CmdContext): CmdResult {
 
   auditLog({ action: 'cmd:agent-remove', sender: ctx.sender, detail: id, status: 'allowed' });
   const extra = wasDefault ? ' (cleared default)' : '';
-  return { response: `Agent '${id}' removed.${extra}`, skipInvoke: true };
+  return cmdReply(`Agent '${id}' removed.${extra}`);
 }
 
 /** /agent provider <id> [provider] [--model M] */
 function agentProvider(args: string, ctx: CmdContext): CmdResult {
   const parts = args.split(/\s+/);
   const id = parseRef(parts[0] || '');
-  if (!id) return { response: 'Usage: `/agent provider <id> [provider] [--model M]`', skipInvoke: true };
+  if (!id) return cmdReply('Usage: `/agent provider <id> [provider] [--model M]`');
 
   const agents = getAgents();
-  if (!agents[id]) return { response: `Agent '${id}' not found.`, skipInvoke: true };
+  if (!agents[id]) return cmdReply(`Agent '${id}' not found.`);
 
   const providerArg = parts[1];
   if (!providerArg) {
     const a = agents[id]!;
-    return { response: `${id} — ${a.provider}/${a.model}`, skipInvoke: true };
+    return cmdReply(`${id} — ${a.provider}/${a.model}`);
   }
 
   try { getProvider(providerArg); } catch {
-    return { response: `Unknown provider: ${providerArg}. Available: ${listProviders().join(', ')}`, skipInvoke: true };
+    return cmdReply(`Unknown provider: ${providerArg}. Available: ${listProviders().join(', ')}`);
   }
 
   const modelIdx = parts.indexOf('--model');
@@ -127,13 +128,13 @@ function agentProvider(args: string, ctx: CmdContext): CmdResult {
   });
 
   auditLog({ action: 'cmd:agent-provider', sender: ctx.sender, detail: args, status: 'allowed' });
-  return { response: `${id} → ${providerArg}${model ? ` (${model})` : ''}`, skipInvoke: true };
+  return cmdReply(`${id} → ${providerArg}${model ? ` (${model})` : ''}`);
 }
 
 /** Dispatch /agent subcommands */
 export function dispatchAgentCommand(args: string, ctx: CmdContext): CmdResult {
   if (!args.trim()) {
-    return { response: formatAgentList(), skipInvoke: true };
+    return cmdReply(formatAgentList());
   }
 
   const parts = args.trim().split(/\s+/);
@@ -148,6 +149,6 @@ export function dispatchAgentCommand(args: string, ctx: CmdContext): CmdResult {
   // Default: switch to agent by name/id
   const agents = getAgents();
   const agentId = Object.keys(agents).find(id => id.toLowerCase() === sub);
-  if (!agentId) return { response: `Unknown agent: ${sub}`, skipInvoke: true };
-  return { response: `Switched to agent: ${agentId}`, skipInvoke: true, agent: agentId };
+  if (!agentId) return cmdReply(`Unknown agent: ${sub}`);
+  return cmdReply(`Switched to agent: ${agentId}`, { agent: agentId });
 }

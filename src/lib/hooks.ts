@@ -91,7 +91,8 @@ export async function runHooks(
   const settings = getSettings();
   const userHooks = settings.hooks?.[event] ?? [];
   const defaultHooks = DEFAULT_HOOKS[event] ?? [];
-  // Deduplicate: skip defaults already configured by user (by builtin name)
+  // Deduplicate: user hooks override defaults by builtin name — allows user
+  // to reconfigure built-in hooks (e.g. secrets-scan with custom config).
   const userBuiltins = new Set(userHooks.filter(h => h.builtin).map(h => h.builtin));
   const hooks = [...userHooks, ...defaultHooks.filter(h => !userBuiltins.has(h.builtin))];
   if (!hooks.length) return { action: 'allow', message: msg.message };

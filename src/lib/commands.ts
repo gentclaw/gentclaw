@@ -13,6 +13,7 @@ import { dispatchAgentCommand, formatAgentList } from './commands/agent.js';
 import { log } from './log.js';
 import { auditLog } from './audit.js';
 import { SCRIPT_DIR } from './paths.js';
+import { cmdReply } from './types.js';
 import type { CmdResult, CmdContext } from './types.js';
 
 const L = log('commands');
@@ -86,7 +87,7 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
       }
     }
 
-    return { response: lines.join('\n'), skipInvoke: true };
+    return cmdReply(lines.join('\n'));
   },
 
   status: () => {
@@ -118,26 +119,26 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
       }
     }
 
-    return { response: lines.join('\n'), skipInvoke: true };
+    return cmdReply(lines.join('\n'));
   },
 
   model: (args) => {
     const defaultId = getDefaultAgentId();
     if (!args.trim()) {
       const agents = getAgents();
-      return { response: `Current model: ${agents[defaultId]!.model}`, skipInvoke: true };
+      return cmdReply(`Current model: ${agents[defaultId]!.model}`);
     }
     const target = args.trim();
     updateSettings(s => ({
       ...s,
       agents: { ...s.agents, [defaultId]: { ...s.agents![defaultId]!, model: target } },
     }));
-    return { response: `Model set to: ${target}`, skipInvoke: true };
+    return cmdReply(`Model set to: ${target}`);
   },
 
   agent: (args, ctx) => dispatchAgentCommand(args, ctx),
 
-  agents: () => ({ response: formatAgentList(), skipInvoke: true }),
+  agents: () => cmdReply(formatAgentList()),
 
   team: (args, ctx) => dispatchTeamCommand(args, ctx),
 
@@ -145,18 +146,18 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
 
   default: (args) => {
     if (!args.trim()) {
-      return { response: `Default agent: ${getDefaultAgentId()}`, skipInvoke: true };
+      return cmdReply(`Default agent: ${getDefaultAgentId()}`);
     }
     const target = args.trim();
     const agents = getAgents();
-    if (!agents[target]) return { response: `Unknown agent: ${target}`, skipInvoke: true };
+    if (!agents[target]) return cmdReply(`Unknown agent: ${target}`);
     updateSettings(s => ({ ...s, defaultAgent: target }));
-    return { response: `Default agent set to: ${target}`, skipInvoke: true };
+    return cmdReply(`Default agent set to: ${target}`);
   },
 
   reset: (_args, ctx) => {
     deleteSession(ctx.sessionKey);
-    return { response: 'Session reset. Next message starts fresh.', skipInvoke: true };
+    return cmdReply('Session reset. Next message starts fresh.');
   },
 
   stop: (_args, ctx) => {
@@ -164,17 +165,17 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
     mkdirSync(dirname(flagFile), { recursive: true });
     writeFileSync(flagFile, Date.now().toString(), 'utf-8');
     L.info('stop flag written', { sessionKey: ctx.sessionKey });
-    return { response: 'Stop signal sent.', skipInvoke: true };
+    return cmdReply('Stop signal sent.');
   },
 
   bash: (args, ctx) => {
     const cmd = args.trim();
-    if (!cmd) return { response: 'Usage: `/bash <command>`', skipInvoke: true };
+    if (!cmd) return cmdReply('Usage: `/bash <command>`');
 
     const validation = validateShellCmd(cmd, getSettings().bash?.allowlist);
     if (!validation.safe) {
       auditLog({ action: 'cmd:bash', sender: ctx.sender, detail: cmd, status: 'denied', reason: validation.reason });
-      return { response: `Denied: ${validation.reason}`, skipInvoke: true, audited: true };
+      return cmdReply(`Denied: ${validation.reason}`, { audited: true });
     }
 
     try {
@@ -185,10 +186,10 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
         maxBuffer: 100_000,
       });
       const trimmed = output.trim();
-      return { response: trimmed ? `\`\`\`\n${trimmed}\n\`\`\`` : '(no output)', skipInvoke: true };
+      return cmdReply(trimmed ? `\`\`\`\n${trimmed}\n\`\`\`` : '(no output)');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      return { response: `Error: ${msg.slice(0, 500)}`, skipInvoke: true };
+      return cmdReply(`Error: ${msg.slice(0, 500)}`);
     }
   },
 
@@ -199,17 +200,17 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
     if (sub === 'clear') {
       if (isShared) {
         clearSharedMemory();
-        return { response: 'Shared memory cleared.', skipInvoke: true };
+        return cmdReply('Shared memory cleared.');
       }
       const agents = getAgents();
       for (const id of Object.keys(agents)) clearAgentMemory(id);
-      return { response: 'All agent memories cleared.', skipInvoke: true };
+      return cmdReply('All agent memories cleared.');
     }
 
     if (sub === 'show') {
       if (isShared) {
         const mem = readSharedMemory();
-        return { response: mem ? `*Shared memory:*\n\`\`\`\n${mem.slice(0, 3000)}\n\`\`\`` : 'No shared memory.', skipInvoke: true };
+        return cmdReply(mem ? `*Shared memory:*\n\`\`\`\n${mem.slice(0, 3000)}\n\`\`\`` : 'No shared memory.');
       }
       const agents = getAgents();
       const lines: string[] = [];
@@ -217,18 +218,15 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
         const mem = readAgentMemory(id);
         if (mem) lines.push(`*${id}:*\n\`\`\`\n${mem.slice(0, 1000)}\n\`\`\``);
       }
-      return { response: lines.length > 0 ? lines.join('\n\n') : 'No agent memories.', skipInvoke: true };
+      return cmdReply(lines.length > 0 ? lines.join('\n\n') : 'No agent memories.');
     }
 
-    return { response: 'Usage: `/memory show [--shared]` or `/memory clear [--shared]`', skipInvoke: true };
+    return cmdReply('Usage: `/memory show [--shared]` or `/memory clear [--shared]`');
   },
 
   reload: (args, ctx) => {
     if (!args.includes('--force')) {
-      return {
-        response: 'Reloading will rebuild and restart the service.\nUse `/reload --force` to confirm.',
-        skipInvoke: true,
-      };
+      return cmdReply('Reloading will rebuild and restart the service.\nUse `/reload --force` to confirm.');
     }
     L.warn('/reload triggered', { sender: ctx.sender });
     const child = spawn('node', [resolve(SCRIPT_DIR, 'dist/lib/reload-worker.js')], {
@@ -241,7 +239,7 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
       },
     });
     child.unref();
-    return { response: 'Reloading... (build + restart service)', skipInvoke: true };
+    return cmdReply('Reloading... (build + restart service)');
   },
 };
 
