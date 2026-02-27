@@ -151,7 +151,7 @@ async function handleEvent(
   };
 
   // Signal dispatch
-  reaction('add',channelId, ts, 'eyes');
+  reaction('add', channelId, ts, 'eyes');
 
   // Process with per-session serialization
   await runSequential(sk, async () => {
@@ -164,9 +164,9 @@ async function handleEvent(
       L.error('processing error', { sessionKey: sk, error: errMsg(err) });
       await reply(channelId, replyTs, `Error: ${errMsg(err)}`);
     } finally {
-      reaction('remove',channelId, ts, 'eyes');
-      reaction('add',channelId, ts, outcome);
-      setTimeout(() => reaction('remove',channelId, ts, outcome), REACT_HOLD_MS);
+      reaction('remove', channelId, ts, 'eyes');
+      reaction('add', channelId, ts, outcome);
+      setTimeout(() => reaction('remove', channelId, ts, outcome), REACT_HOLD_MS);
     }
   });
 }
