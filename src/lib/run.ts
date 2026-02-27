@@ -1,10 +1,10 @@
 import { spawn } from 'node:child_process';
-import { existsSync, unlinkSync, mkdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { getProvider, buildProviderArgs, parseProviderOutput, extractUsage, getNestedField } from './providers.js';
 import { getAgents } from './config.js';
-import { getCliSessionId, setCliSessionId, stopFlagPath } from './sessions.js';
+import { getCliSessionId, setCliSessionId, stopFlagPath, clearStopFlag } from './sessions.js';
 import { RunError, errMsg } from './errors.js';
 import { MAX_RUN_TIMEOUT_MS, STOP_FLAG_POLL_MS, SPAWN_ENV } from './constants.js';
 import { stripAnsi } from './text.js';
@@ -66,9 +66,8 @@ function runCommand(
 
     // Stop-flag watcher
     const stopInterval = setInterval(() => {
-      if (existsSync(opts.stopFlagFile)) {
+      if (clearStopFlag(opts.stopFlagFile)) {
         L.info('stop flag detected, killing child');
-        try { unlinkSync(opts.stopFlagFile); } catch { /* ignore */ }
         killWithEscalation();
         settle(() => resolve({
           response: stripAnsi(Buffer.concat(stdout).toString('utf-8')),

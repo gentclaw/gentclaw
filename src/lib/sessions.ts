@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, unlinkSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, unlinkSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { PATHS } from './paths.js';
 import { atomicWriteJson } from './fs-utils.js';
@@ -77,6 +77,13 @@ export function deleteSession(sessionKey: string): void {
 /** Get the stop-flag path for a session. */
 export function stopFlagPath(sessionKey: string): string {
   return join(PATHS.flags, `stop-${sanitize(sessionKey)}`);
+}
+
+/** Remove a stop-flag file if it exists. Returns true if flag was present. */
+export function clearStopFlag(flagFile: string): boolean {
+  if (!existsSync(flagFile)) return false;
+  try { unlinkSync(flagFile); } catch { /* ignore */ }
+  return true;
 }
 
 /** Probabilistic cleanup of expired sessions. Uses random sampling (5% per message) instead of timers — avoids extra interval management in the daemon. */

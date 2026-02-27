@@ -17,7 +17,7 @@ export function atomicWriteJson(filePath: string, data: unknown): void {
 }
 
 /** Append a JSON record as a JSONL line (mode 0o600). Best-effort, never throws. */
-export function appendJsonl(filePath: string, record: unknown): void {
+function appendJsonl(filePath: string, record: unknown): void {
   try {
     const dir = dirname(filePath);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -25,6 +25,11 @@ export function appendJsonl(filePath: string, record: unknown): void {
   } catch {
     // Best-effort — never break caller flow
   }
+}
+
+/** Append a timestamped JSON record as a JSONL line (mode 0o600). Best-effort, never throws. */
+export function appendJsonlWithTs(filePath: string, record: Record<string, unknown>): void {
+  appendJsonl(filePath, { ts: Date.now(), ...record });
 }
 
 /** Ensure all required directories exist. */

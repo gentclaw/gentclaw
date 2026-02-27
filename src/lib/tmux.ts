@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { TMUX_SESSION, TMUX_POLL_MS, SUBPROCESS_ENV } from './constants.js';
 import { RunError } from './errors.js';
+import { clearStopFlag } from './sessions.js';
 import { stripAnsi } from './text.js';
 import { log } from './log.js';
 
@@ -89,9 +90,8 @@ export async function runInTmux(
   await new Promise<void>((resolve, reject) => {
     const poll = setInterval(() => {
       // Check stop flag
-      if (existsSync(opts.stopFlagFile)) {
+      if (clearStopFlag(opts.stopFlagFile)) {
         L.info('stop flag detected, killing tmux window');
-        try { unlinkSync(opts.stopFlagFile); } catch { /* ignore */ }
         tmux('kill-window', '-t', `${TMUX_SESSION}:${winName}`);
         stopped = true;
         clearInterval(poll);

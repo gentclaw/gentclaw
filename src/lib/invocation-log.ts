@@ -1,7 +1,7 @@
 /** Append-only JSONL invocation log — tracks every agent run for cost/debug visibility */
 
 import { PATHS } from './paths.js';
-import { appendJsonl } from './fs-utils.js';
+import { appendJsonlWithTs } from './fs-utils.js';
 import type { TokenUsage } from './types.js';
 
 export type InvocationRecord = {
@@ -19,5 +19,5 @@ export type InvocationRecord = {
 
 /** Append invocation record to JSONL (mode 0o600). Best-effort, never throws. */
 export function logInvocation(record: Omit<InvocationRecord, 'ts'>): void {
-  appendJsonl(PATHS.invocations, { ts: Date.now(), ...record });
+  appendJsonlWithTs(PATHS.invocations, record);
 }

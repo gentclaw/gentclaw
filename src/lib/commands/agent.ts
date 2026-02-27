@@ -3,7 +3,7 @@
 import { getAgents, getDefaultAgentId, getSettings, updateSettings } from '../config.js';
 import { listProviders, getProvider } from '../providers.js';
 import { auditLog } from '../audit.js';
-import { parseRef, parseSafeId } from '../parse-ref.js';
+import { parseRef, parseSafeId, parseForceFlag } from '../parse-ref.js';
 import { cmdReply } from '../types.js';
 import type { CmdResult, CmdContext } from '../types.js';
 
@@ -72,8 +72,7 @@ function agentAdd(args: string, ctx: CmdContext): CmdResult {
 
 /** /agent remove <id> [--force] */
 function agentRemove(args: string, ctx: CmdContext): CmdResult {
-  const hasForce = /--force\b/.test(args);
-  const cleanArgs = args.replace(/--force\s*/g, '').trim();
+  const { cleanArgs, force: hasForce } = parseForceFlag(args);
   const id = parseRef(cleanArgs);
   if (!id) return cmdReply('Usage: `/agent remove <id> --force`');
 

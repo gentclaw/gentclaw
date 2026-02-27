@@ -3,7 +3,7 @@
 import { getAgents, getSettings, getTeams, updateSettings } from '../config.js';
 import { validateTeam } from '../team.js';
 import { auditLog } from '../audit.js';
-import { parseRef, parseSafeId } from '../parse-ref.js';
+import { parseRef, parseSafeId, parseForceFlag } from '../parse-ref.js';
 import { cmdReply } from '../types.js';
 import type { CmdResult, CmdContext } from '../types.js';
 
@@ -73,8 +73,7 @@ export function teamAdd(args: string, ctx: CmdContext): CmdResult {
 
 /** /team remove <id> [--force] */
 export function teamRemove(args: string, ctx: CmdContext): CmdResult {
-  const hasForce = /--force\b/.test(args);
-  const cleanArgs = args.replace(/--force\s*/g, '').trim();
+  const { cleanArgs, force: hasForce } = parseForceFlag(args);
   const teamId = parseRef(cleanArgs);
   if (!teamId) return cmdReply('Usage: `/team remove <id> [--force]`');
 

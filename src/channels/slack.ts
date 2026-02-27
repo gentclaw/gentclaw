@@ -20,17 +20,10 @@ let app: App;
 let botUserId: string | undefined;
 let botMentionRe: RegExp | undefined;
 
-/** Add a Slack reaction (fire-and-forget). */
-function addReaction(channel: string, timestamp: string, name: string): void {
-  app.client.reactions.add({ channel, timestamp, name }).catch(err =>
-    L.warn('reaction.add failed', { name, error: errMsg(err) }),
-  );
-}
-
-/** Remove a Slack reaction (fire-and-forget). */
-function removeReaction(channel: string, timestamp: string, name: string): void {
-  app.client.reactions.remove({ channel, timestamp, name }).catch(err =>
-    L.warn('reaction.remove failed', { name, error: errMsg(err) }),
+/** Fire-and-forget Slack reaction. */
+function reaction(method: 'add' | 'remove', channel: string, timestamp: string, name: string): void {
+  app.client.reactions[method]({ channel, timestamp, name }).catch(err =>
+    L.warn(`reaction.${method} failed`, { name, error: errMsg(err) }),
   );
 }
 
@@ -158,7 +151,7 @@ async function handleEvent(
   };
 
   // Signal dispatch
-  addReaction(channelId, ts, 'eyes');
+  reaction('add',channelId, ts, 'eyes');
 
   // Process with per-session serialization
   await runSequential(sk, async () => {
@@ -171,9 +164,9 @@ async function handleEvent(
       L.error('processing error', { sessionKey: sk, error: errMsg(err) });
       await reply(channelId, replyTs, `Error: ${errMsg(err)}`);
     } finally {
-      removeReaction(channelId, ts, 'eyes');
-      addReaction(channelId, ts, outcome);
-      setTimeout(() => removeReaction(channelId, ts, outcome), REACT_HOLD_MS);
+      reaction('remove',channelId, ts, 'eyes');
+      reaction('add',channelId, ts, outcome);
+      setTimeout(() => reaction('remove',channelId, ts, outcome), REACT_HOLD_MS);
     }
   });
 }

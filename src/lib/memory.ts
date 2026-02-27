@@ -43,7 +43,7 @@ function capEntry(content: string): string {
   }
   const lines = capped.split('\n');
   if (lines.length <= ENTRY_MAX_LINES) return capped;
-  return lines.slice(0, ENTRY_MAX_LINES).join('\n') + '\n…(truncated)';
+  return lines.slice(0, ENTRY_MAX_LINES).join('\n') + TRUNCATION_SUFFIX;
 }
 
 // ─── Core read/append/clear ──────────────────────────────────────
