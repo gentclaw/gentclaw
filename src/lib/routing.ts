@@ -28,27 +28,30 @@ function parseDirective(text: string): Directive {
   return { kind: 'mention', agentRef: ref, body: trimmed.slice(i).trimStart() };
 }
 
-/** Fingerprint-based cached index — rebuilds only when data changes. */
-function createCachedIndex<T>(
-  fingerprint: () => string,
-  build: () => Map<string, T>,
+/** Fingerprint-based cached index — rebuilds only when data changes. Fetch supplies data to both fingerprint and build to avoid double-fetching. */
+function createCachedIndex<D, T>(
+  fetch: () => D,
+  fingerprint: (data: D) => string,
+  build: (data: D) => Map<string, T>,
 ): () => Map<string, T> {
   let cached: Map<string, T> | null = null;
   let fp = '';
   return () => {
-    const newFp = fingerprint();
+    const data = fetch();
+    const newFp = fingerprint(data);
     if (cached && fp === newFp) return cached;
-    cached = build();
+    cached = build(data);
     fp = newFp;
     return cached;
   };
 }
 
-const getNameIndex = createCachedIndex<string>(
-  () => Object.entries(getAgents()).map(([id, c]) => `${id}:${c.name}`).sort().join('|'),
-  () => {
+const getNameIndex = createCachedIndex(
+  getAgents,
+  (agents) => Object.entries(agents).map(([id, c]) => `${id}:${c.name}`).sort().join('|'),
+  (agents) => {
     const idx = new Map<string, string>();
-    for (const [id, cfg] of Object.entries(getAgents())) {
+    for (const [id, cfg] of Object.entries(agents)) {
       idx.set(id.toLowerCase(), id);
       if (cfg.name) idx.set(cfg.name.toLowerCase(), id);
     }
@@ -59,12 +62,13 @@ const getNameIndex = createCachedIndex<string>(
 type TeamEntry = { teamId: string; leaderId: string };
 
 /** IDs take priority over display names (names inserted first, IDs override on collision). */
-const getTeamIndex = createCachedIndex<TeamEntry>(
-  () => Object.entries(getTeams()).map(([id, t]) => `${id}:${t.name}:${t.leader}:${t.agents.join(',')}`).sort().join('|'),
-  () => {
+const getTeamIndex = createCachedIndex(
+  getTeams,
+  (teams) => Object.entries(teams).map(([id, t]) => `${id}:${t.name}:${t.leader}:${t.agents.join(',')}`).sort().join('|'),
+  (teams) => {
     const idx = new Map<string, TeamEntry>();
-    for (const [id, t] of Object.entries(getTeams())) idx.set(t.name.toLowerCase(), { teamId: id, leaderId: t.leader });
-    for (const [id, t] of Object.entries(getTeams())) idx.set(id.toLowerCase(), { teamId: id, leaderId: t.leader });
+    for (const [id, t] of Object.entries(teams)) idx.set(t.name.toLowerCase(), { teamId: id, leaderId: t.leader });
+    for (const [id, t] of Object.entries(teams)) idx.set(id.toLowerCase(), { teamId: id, leaderId: t.leader });
     return idx;
   },
 );

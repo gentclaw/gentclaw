@@ -1,6 +1,6 @@
 /** Shared secret-detection patterns — single source of truth for log.ts and secrets-scan.ts */
 
-/** Source patterns used to build per-call regexes. Non-global — no shared lastIndex state. */
+/** Regex source strings — combined into COMBINED_RE at module load. Stored as strings for testability. */
 export const SECRET_PATTERNS: readonly string[] = [
   'xoxb-[0-9A-Za-z-]+',                                           // Slack bot token
   'xapp-[0-9A-Za-z-]+',                                           // Slack app token
@@ -12,10 +12,7 @@ export const SECRET_PATTERNS: readonly string[] = [
   'AIza[A-Za-z0-9_-]{35}',                                        // Google/Gemini API key
 ];
 
-/**
- * Pre-compiled combined regex — safe as module-level /g because String.prototype.replace()
- * always starts matching from index 0 regardless of lastIndex state.
- */
+/** Pre-compiled combined regex. Module-level /g is safe here — only used with String.prototype.replace(), which resets lastIndex per call. Do not use with .test() or .exec(). */
 const COMBINED_RE = new RegExp(SECRET_PATTERNS.join('|'), 'g');
 
 const REDACTED = '[REDACTED]';

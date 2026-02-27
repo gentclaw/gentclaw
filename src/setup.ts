@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { PATHS } from './lib/paths.js';
 import { ensureDirectories } from './lib/fs-utils.js';
 import { writeSettings, updateSettings, getSettings } from './lib/config.js';
+import { parseSafeId } from './lib/parse-ref.js';
 import type { Settings, Agent } from './lib/types.js';
 
 // ANSI colors
@@ -167,15 +168,16 @@ async function promptAgent(existingIds: string[]): Promise<{ id: string; agent: 
       console.log('Agent ID cannot be empty.');
       continue;
     }
-    if (/\s/.test(raw)) {
-      console.log('Agent ID cannot contain spaces.');
+    const sanitized = parseSafeId(raw);
+    if (!sanitized) {
+      console.log('Invalid agent ID — use only letters, numbers, hyphens, underscores.');
       continue;
     }
-    if (existingIds.some(e => e.toLowerCase() === raw.toLowerCase())) {
-      console.log(`Agent "${raw}" already exists.`);
+    if (existingIds.some(e => e.toLowerCase() === sanitized)) {
+      console.log(`Agent "${sanitized}" already exists.`);
       continue;
     }
-    id = raw.toLowerCase();
+    id = sanitized;
   }
 
   const isDefault = id === defaultAgent.id;
