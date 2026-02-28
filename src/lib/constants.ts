@@ -35,8 +35,9 @@ export const SPAWN_ENV = {
   CLAUDE_CODE_ENTRYPOINT: 'cli',
 } as const;
 
-/** Minimal env for non-Claude subprocesses (no CLAUDE_CODE_ENTRYPOINT needed). */
+/** Minimal env for non-Claude subprocesses (no CLAUDE_CODE_ENTRYPOINT needed). FORCE_COLOR prevents color leakage into logs/programmatic output. */
 export const SUBPROCESS_ENV = {
   PATH: process.env.PATH || '',
   HOME: process.env.HOME || '',
+  FORCE_COLOR: '0',
 } as const;

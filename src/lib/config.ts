@@ -59,11 +59,14 @@ export function getTeams(): Record<string, Team> {
   return getSettings().teams ?? {};
 }
 
-/** Get the default agent ID. Falls back to first configured agent. */
+/** Get the default agent ID. Falls back to first configured agent. Single getSettings() call — avoids redundant stat via getAgents(). */
 export function getDefaultAgentId(): string {
-  const agents = getAgents();
-  const defaultId = getSettings().defaultAgent;
-  if (defaultId && agents[defaultId]) return defaultId;
+  const s = getSettings();
+  const agents = s.agents;
+  if (!agents || Object.keys(agents).length === 0) {
+    throw new ConfigError('No agents configured. Run the setup wizard or add agents to settings.json.');
+  }
+  if (s.defaultAgent && agents[s.defaultAgent]) return s.defaultAgent;
   return Object.keys(agents)[0]!;
 }
 
