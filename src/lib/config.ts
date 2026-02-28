@@ -4,6 +4,16 @@ import { atomicWriteJson } from './fs-utils.js';
 import { ConfigError, errMsg } from './errors.js';
 import type { Settings, Agent, Team } from './types.js';
 
+/** Lightweight runtime check — rejects obviously corrupt settings files */
+function isSettingsShape(v: unknown): v is Settings {
+  if (v == null || typeof v !== 'object' || Array.isArray(v)) return false;
+  const s = v as Record<string, unknown>;
+  if (s.agents !== undefined && (typeof s.agents !== 'object' || Array.isArray(s.agents))) return false;
+  if (s.teams !== undefined && (typeof s.teams !== 'object' || Array.isArray(s.teams))) return false;
+  if (s.defaultAgent !== undefined && typeof s.defaultAgent !== 'string') return false;
+  return true;
+}
+
 let cached: { settings: Settings; mtime: number } | null = null;
 
 /** Read settings with mtime-based cache. Avoids re-parsing on every access. */
@@ -12,7 +22,11 @@ export function getSettings(): Settings {
     const mt = statSync(PATHS.settings).mtimeMs;
     if (cached && cached.mtime === mt) return cached.settings;
     const raw = readFileSync(PATHS.settings, 'utf-8');
-    const settings = JSON.parse(raw) as Settings;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isSettingsShape(parsed)) {
+      throw new ConfigError('Settings file has invalid structure');
+    }
+    const settings = parsed;
     cached = { settings, mtime: mt };
     return settings;
   } catch (err) {

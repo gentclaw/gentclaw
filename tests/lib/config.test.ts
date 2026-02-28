@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -79,5 +79,17 @@ describe('config', () => {
     });
     clearConfigCache();
     expect(hasAgents()).toBe(true);
+  });
+
+  it('rejects corrupt settings file (array instead of object)', () => {
+    writeFileSync(join(testHome, 'settings.json'), '["not","an","object"]', 'utf-8');
+    clearConfigCache();
+    expect(() => getSettings()).toThrow(ConfigError);
+  });
+
+  it('rejects settings with agents as array', () => {
+    writeFileSync(join(testHome, 'settings.json'), '{"agents":["bad"]}', 'utf-8');
+    clearConfigCache();
+    expect(() => getSettings()).toThrow(ConfigError);
   });
 });

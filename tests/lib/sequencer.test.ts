@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runSequential, activeTasks } from '../../src/lib/sequencer.js';
+import { runSequential, activeTasks, QueueFullError } from '../../src/lib/sequencer.js';
 
 describe('runSequential', () => {
   it('runs tasks with same key sequentially', async () => {
@@ -57,5 +57,25 @@ describe('runSequential', () => {
     // Allow microtask to run
     await new Promise(r => setTimeout(r, 10));
     expect(activeTasks()).toBe(0);
+  });
+
+  it('rejects with QueueFullError when queue exceeds max length', async () => {
+    // Block the drain loop so tasks queue up
+    let unblock!: () => void;
+    const blocker = new Promise<void>(r => { unblock = r; });
+
+    const first = runSequential('full', () => blocker);
+    // Fill queue to max (50 = MAX_QUEUE_LENGTH, first is draining so 49 queued + 1 active)
+    const fills = Array.from({ length: 50 }, () =>
+      runSequential('full', async () => {}).catch(() => {}),
+    );
+
+    // Next one should be rejected
+    await expect(runSequential('full', async () => {})).rejects.toThrow(QueueFullError);
+
+    // Cleanup
+    unblock();
+    await first;
+    await Promise.allSettled(fills);
   });
 });

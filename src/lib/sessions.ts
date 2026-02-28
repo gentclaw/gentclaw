@@ -8,6 +8,14 @@ import { errMsg } from './errors.js';
 import type { Session } from './types.js';
 
 const L = log('sessions');
+
+/** Lightweight runtime check — rejects corrupt session files */
+function isSessionShape(v: unknown): v is Session {
+  if (v == null || typeof v !== 'object' || Array.isArray(v)) return false;
+  const s = v as Record<string, unknown>;
+  return typeof s.sessionKey === 'string' && typeof s.agentId === 'string'
+    && typeof s.createdAt === 'number' && typeof s.lastAccessAt === 'number';
+}
 const SAFE_RE = /[^a-zA-Z0-9_-]/g;
 
 function sanitize(key: string): string {
@@ -21,7 +29,12 @@ function sessionPath(sessionKey: string): string {
 function readSession(sessionKey: string): Session | null {
   try {
     const raw = readFileSync(sessionPath(sessionKey), 'utf-8');
-    return JSON.parse(raw) as Session;
+    const parsed: unknown = JSON.parse(raw);
+    if (!isSessionShape(parsed)) {
+      L.warn('corrupt session file', { sessionKey });
+      return null;
+    }
+    return parsed;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       L.warn('session read failed', { sessionKey, error: errMsg(err) });

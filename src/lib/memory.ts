@@ -32,13 +32,14 @@ function trimEntries(content: string): string {
 const TRUNCATION_SUFFIX = '\n…(truncated)';
 const TRUNCATION_SUFFIX_BYTES = Buffer.byteLength(TRUNCATION_SUFFIX, 'utf8');
 
-/** Cap a single entry at ENTRY_MAX_LINES / ENTRY_MAX_BYTES to prevent budget exhaustion */
+/** Cap a single entry at ENTRY_MAX_LINES / ENTRY_MAX_BYTES to prevent budget exhaustion.
+ * Uses Buffer to slice at exact byte budget, then decodes back to string —
+ * avoids splitting multi-byte UTF-8 chars (Buffer.toString drops incomplete trailing sequences). */
 function capEntry(content: string): string {
   let capped = content;
   if (Buffer.byteLength(capped, 'utf8') > ENTRY_MAX_BYTES) {
     const budget = ENTRY_MAX_BYTES - TRUNCATION_SUFFIX_BYTES;
-    const ratio = capped.length / Buffer.byteLength(capped, 'utf8');
-    capped = capped.slice(0, Math.floor(budget * ratio));
+    capped = Buffer.from(capped, 'utf8').subarray(0, budget).toString('utf8');
     capped += TRUNCATION_SUFFIX;
   }
   const lines = capped.split('\n');
