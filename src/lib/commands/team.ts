@@ -29,13 +29,13 @@ export function teamShow(args: string): CmdResult {
   const id = parseRef(args.trim());
   if (!id) return cmdReply('Usage: `/team show <id>`');
   const teams = getTeams();
-  const t = teams[id];
-  if (!t) return cmdReply(`Team '${id}' not found.`);
+  const team = teams[id];
+  if (!team) return cmdReply(`Team '${id}' not found.`);
   const agents = getAgents();
   const lines = [
-    `*@${id}* — ${t.name}`,
-    `Leader: @${t.leader}`,
-    `Agents: ${t.agents.map(a => {
+    `*@${id}* — ${team.name}`,
+    `Leader: @${team.leader}`,
+    `Agents: ${team.agents.map(a => {
       const cfg = agents[a];
       return cfg ? `@${a} (${cfg.provider}/${cfg.model})` : `@${a} (missing)`;
     }).join(', ')}`,

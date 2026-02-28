@@ -81,7 +81,9 @@ export function getDefaultAgentId(): string {
     throw new ConfigError('No agents configured. Run the setup wizard or add agents to settings.json.');
   }
   if (s.defaultAgent && agents[s.defaultAgent]) return s.defaultAgent;
-  return Object.keys(agents)[0] ?? '';
+  const first = Object.keys(agents)[0];
+  if (!first) throw new ConfigError('No agents configured (unreachable).');
+  return first;
 }
 
 /** Invalidate the cache (for testing or after external file changes). */

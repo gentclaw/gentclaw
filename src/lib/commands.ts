@@ -16,7 +16,7 @@ import { auditLog } from './audit.js';
 import { SCRIPT_DIR } from './paths.js';
 import { elapsedSec } from './text.js';
 import { cmdReply } from './types.js';
-import type { Agent, CmdResult, CmdContext } from './types.js';
+import type { CmdResult, CmdContext } from './types.js';
 
 const L = log('commands');
 
@@ -132,10 +132,11 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
       return cmdReply(`Current model: ${agents[defaultId]?.model ?? 'unknown'}`);
     }
     const target = args.trim();
-    updateSettings(s => ({
-      ...s,
-      agents: { ...s.agents, [defaultId]: { ...s.agents?.[defaultId] as Agent, model: target } },
-    }));
+    updateSettings(s => {
+      const current = s.agents?.[defaultId];
+      if (!current) return s;
+      return { ...s, agents: { ...s.agents, [defaultId]: { ...current, model: target } } };
+    });
     return cmdReply(`Model set to: ${target}`);
   },
 
@@ -183,7 +184,8 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
 
     try {
       const parts = tokenizeArgs(cmd);
-      const output = execFileSync(parts[0] ?? '', parts.slice(1), {
+      if (!parts[0]) return cmdReply('Empty command.');
+      const output = execFileSync(parts[0], parts.slice(1), {
         encoding: 'utf-8',
         timeout: 10_000,
         maxBuffer: 100_000,

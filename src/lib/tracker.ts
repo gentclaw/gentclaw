@@ -42,9 +42,8 @@ export function trackFinish(sessionKey: string, success: boolean): void {
     success,
   };
 
-  if (!history.has(task.agentId)) history.set(task.agentId, []);
-  const ring = history.get(task.agentId) ?? [];
-  history.set(task.agentId, ring);
+  let ring = history.get(task.agentId);
+  if (!ring) { ring = []; history.set(task.agentId, ring); }
   ring.unshift(finished);
   if (ring.length > MAX_HISTORY) ring.length = MAX_HISTORY;
 

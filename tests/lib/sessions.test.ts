@@ -9,7 +9,7 @@ process.env['GENTCLAW_HOME'] = testHome;
 
 const {
   getSessionAgent, setSessionAgent, getCliSessionId, setCliSessionId,
-  deleteSession, stopFlagPath, clearStopFlag, maybeCleanupSessions,
+  deleteSession, stopFlagPath, clearStopFlag,
 } = await import('../../src/lib/sessions.js');
 const { ensureDirectories } = await import('../../src/lib/fs-utils.js');
 const { PATHS } = await import('../../src/lib/paths.js');
