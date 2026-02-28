@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -40,8 +40,8 @@ describe('fs-utils', () => {
     it('leaves no tmp files on success', () => {
       const p = join(testDir, 'clean.txt');
       atomicWriteText(p, 'data');
-      const files = require('node:fs').readdirSync(testDir) as string[];
-      const tmpFiles = files.filter((f: string) => f.startsWith('.tmp-'));
+      const files = readdirSync(testDir);
+      const tmpFiles = files.filter(f => f.startsWith('.tmp-'));
       expect(tmpFiles).toHaveLength(0);
     });
   });
