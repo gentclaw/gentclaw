@@ -29,7 +29,12 @@ function reaction(method: 'add' | 'remove', channel: string, timestamp: string, 
 
 /** Runtime type guard — validates object has expected SlackFile shape. */
 function isSlackFile(f: unknown): f is { name?: string; size?: number; url_private?: string } {
-  return typeof f === 'object' && f !== null;
+  if (typeof f !== 'object' || f === null) return false;
+  const o = f as Record<string, unknown>;
+  if ('name' in o && typeof o.name !== 'string') return false;
+  if ('size' in o && typeof o.size !== 'number') return false;
+  if ('url_private' in o && typeof o.url_private !== 'string') return false;
+  return true;
 }
 
 /** Runtime type guard — validates Slack event has required fields for processing. */
@@ -237,7 +242,7 @@ export async function startSlack(): Promise<void> {
 
   const shutdown = () => {
     stopHeartbeat();
-    try { app?.stop()?.catch(() => {}); } catch {}
+    app?.stop()?.catch(() => {});
   };
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);

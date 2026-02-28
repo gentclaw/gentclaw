@@ -79,6 +79,7 @@ describe('slack channel', () => {
     mockReactionsAdd.mockClear();
     mockReactionsRemove.mockClear();
 
+    // Dynamic import returns cached module (vi.mock hoisted) — re-runs startSlack to register fresh handlers
     const mod = await import('../../src/channels/slack.js');
     await mod.startSlack();
   });

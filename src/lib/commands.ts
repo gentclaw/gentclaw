@@ -1,7 +1,7 @@
-import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync, spawn } from 'node:child_process';
-import { dirname, resolve, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { createRequire } from 'node:module';
 import { getAgents, getDefaultAgentId, getSettings, updateSettings } from './config.js';
 import { deleteSession, stopFlagPath } from './sessions.js';
 import { listProviders } from './providers.js';
@@ -20,9 +20,8 @@ import type { CmdResult, CmdContext } from './types.js';
 
 const L = log('commands');
 
-const PKG_VERSION: string = JSON.parse(
-  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../package.json'), 'utf-8'),
-).version;
+const require = createRequire(import.meta.url);
+const PKG_VERSION: string = require('../../package.json').version;
 
 /** Split a command string into args, respecting single/double quotes. */
 function tokenizeArgs(cmd: string): string[] {
