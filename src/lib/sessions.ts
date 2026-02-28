@@ -93,7 +93,7 @@ export function deleteSession(sessionKey: string): void {
   }
 }
 
-/** Get the stop-flag path for a session. */
+/** Get the stop-flag path for a session. File-based IPC — signals can't reach processes inside tmux panes reliably. @see clearStopFlag, process-runner.ts stop interval */
 export function stopFlagPath(sessionKey: string): string {
   return join(PATHS.flags, `stop-${sanitize(sessionKey)}`);
 }

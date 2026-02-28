@@ -95,7 +95,7 @@ export function resolveRoute(msg: InboundMsg): RouteResult {
       return { agentId, message: directive.body, routeType: 'mention' };
     }
 
-    // Team match — resolve to leader
+    // Team match — resolve to leader. Team mentions are one-shot (no sticky session) — pipeline.ts skips setSessionAgent when teamId is set.
     const entry = getTeamIndex().get(ref);
     if (entry && agents[entry.leaderId]) {
       L.debug('team-routed', { agentId: entry.leaderId, teamId: entry.teamId });

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { getSettings } from './config.js';
+import { auditLog } from './audit.js';
 import { log } from './log.js';
 import { checkRateLimit } from './builtins/rate-limit.js';
 import { checkContentGuard } from './builtins/content-guard.js';
@@ -31,6 +32,7 @@ function runSubprocess(hook: HookDef, msg: InboundMsg): Promise<HookAction> {
     const child = execFile(hook.command ?? '', [], { timeout }, (err, stdout) => {
       if (err) {
         L.warn('hook subprocess failed, allowing', { hook: hook.name, error: err.message });
+        auditLog({ action: 'hook-error', sender: '', detail: `${hook.name}: ${err.message}`, status: 'allowed' });
         resolve({ action: 'allow' });
         return;
       }
