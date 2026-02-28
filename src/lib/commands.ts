@@ -14,6 +14,7 @@ import { dispatchAgentCommand, formatAgentList } from './commands/agent.js';
 import { log } from './log.js';
 import { auditLog } from './audit.js';
 import { SCRIPT_DIR } from './paths.js';
+import { elapsedSec } from './text.js';
 import { cmdReply } from './types.js';
 import type { CmdResult, CmdContext } from './types.js';
 
@@ -111,16 +112,14 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
 
     for (const [agentId, activity] of Object.entries(snapshot.agents)) {
       if (activity.current) {
-        const elapsed = Math.round((Date.now() - activity.current.startedAt) / 1000);
-        lines.push(`*${agentId}* — busy (${elapsed}s): ${activity.current.messagePreview}`);
+        lines.push(`*${agentId}* — busy (${elapsedSec(activity.current.startedAt)}s): ${activity.current.messagePreview}`);
       } else {
         lines.push(`*${agentId}* — idle`);
       }
       const last = activity.recentHistory[0];
       if (last) {
-        const ago = Math.round((Date.now() - last.finishedAt) / 1000);
         const status = last.success ? 'ok' : 'error';
-        lines.push(`  last: ${status} (${Math.round(last.durationMs / 1000)}s, ${ago}s ago)`);
+        lines.push(`  last: ${status} (${Math.round(last.durationMs / 1000)}s, ${elapsedSec(last.finishedAt)}s ago)`);
       }
     }
 

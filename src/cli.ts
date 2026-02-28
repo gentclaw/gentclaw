@@ -5,6 +5,7 @@ import { listProviders } from './lib/providers.js';
 import { PATHS } from './lib/paths.js';
 import { installService, uninstallService, serviceStatus } from './lib/service.js';
 import { DEFAULT_HEARTBEAT_INTERVAL_MIN } from './lib/constants.js';
+import { elapsedSec } from './lib/text.js';
 import type { AgentActivity, StatusSnapshot } from './lib/tracker.js';
 
 const command = process.argv[2];
@@ -79,22 +80,19 @@ function showStatus(): void {
 
   try {
     const snapshot = JSON.parse(readFileSync(PATHS.status, 'utf-8')) as StatusSnapshot;
-    const staleS = Math.round((Date.now() - snapshot.timestamp) / 1000);
-    console.log(`\nRuntime (${staleS}s ago):`);
+    console.log(`\nRuntime (${elapsedSec(snapshot.timestamp)}s ago):`);
     console.log(`Queued tasks: ${snapshot.totalQueuedTasks}`);
 
     for (const [agentId, activity] of Object.entries(snapshot.agents)) {
       if (activity.current) {
-        const elapsed = Math.round((Date.now() - activity.current.startedAt) / 1000);
-        console.log(`  ${agentId}: busy (${elapsed}s) — ${activity.current.messagePreview}`);
+        console.log(`  ${agentId}: busy (${elapsedSec(activity.current.startedAt)}s) — ${activity.current.messagePreview}`);
       } else {
         console.log(`  ${agentId}: idle`);
       }
       const last = activity.recentHistory[0];
       if (last) {
-        const ago = Math.round((Date.now() - last.finishedAt) / 1000);
         const status = last.success ? 'ok' : 'error';
-        console.log(`    last: ${status} (${Math.round(last.durationMs / 1000)}s, ${ago}s ago)`);
+        console.log(`    last: ${status} (${Math.round(last.durationMs / 1000)}s, ${elapsedSec(last.finishedAt)}s ago)`);
       }
     }
   } catch {

@@ -20,34 +20,42 @@ let app: App;
 let botUserId: string | undefined;
 let botMentionRe: RegExp | undefined;
 
-/** Fire-and-forget Slack reaction. */
-function reaction(method: 'add' | 'remove', channel: string, timestamp: string, name: string): void {
-  app.client.reactions[method]({ channel, timestamp, name }).catch(err =>
-    L.warn(`reaction.${method} failed`, { name, error: errMsg(err) }),
-  );
+/** Fire-and-forget Slack reaction. Returns Promise for testability; callers may ignore. */
+function reaction(method: 'add' | 'remove', channel: string, timestamp: string, name: string): Promise<void> {
+  return app.client.reactions[method]({ channel, timestamp, name })
+    .then(() => {})
+    .catch(err => { L.warn(`reaction.${method} failed`, { name, error: errMsg(err) }); });
 }
 
-type SlackFile = { name?: string; size?: number; url_private?: string };
+/** Runtime type guard — validates object has expected SlackFile shape. */
+function isSlackFile(f: unknown): f is { name?: string; size?: number; url_private?: string } {
+  return typeof f === 'object' && f !== null;
+}
 
-type SlackEvent = {
+/** Runtime type guard — validates Slack event has required fields for processing. */
+function isSlackEvent(event: unknown): event is {
   bot_id?: string;
   subtype?: string;
   user?: string;
   text?: string;
-  channel?: string;
-  ts?: string;
+  channel: string;
+  ts: string;
   thread_ts?: string;
   files?: unknown[];
-};
+} {
+  if (!event || typeof event !== 'object') return false;
+  const ev = event as Record<string, unknown>;
+  return typeof ev.channel === 'string' && typeof ev.ts === 'string';
+}
 
 /** Download text content from Slack file attachments. Returns file contents appended to message. */
 async function downloadAttachments(files: unknown[], botToken: string): Promise<string> {
   const parts: string[] = [];
   for (const f of files) {
-    const file = f as SlackFile;
-    const name = file.name || 'unnamed';
-    const size = file.size || 0;
-    const url = file.url_private;
+    if (!isSlackFile(f)) continue;
+    const name = f.name || 'unnamed';
+    const size = f.size || 0;
+    const url = f.url_private;
 
     if (!url || size > MAX_FILE_SIZE) {
       parts.push(`[file: ${name} — skipped (${size > MAX_FILE_SIZE ? 'too large' : 'no url'})]`);
@@ -119,10 +127,13 @@ async function handleEvent(
 
   // Download file attachments and append to message
   if (files && files.length > 0) {
-    const settings = getSettings();
-    const botToken = settings.channels?.slack?.botToken ?? process.env['SLACK_BOT_TOKEN'] ?? '';
-    const fileContent = await downloadAttachments(files, botToken);
-    if (fileContent) cleanText = cleanText ? `${cleanText}\n\n${fileContent}` : fileContent;
+    const botToken = getSettings().channels?.slack?.botToken ?? process.env['SLACK_BOT_TOKEN'];
+    if (!botToken) {
+      L.warn('file download skipped — no botToken available');
+    } else {
+      const fileContent = await downloadAttachments(files, botToken);
+      if (fileContent) cleanText = cleanText ? `${cleanText}\n\n${fileContent}` : fileContent;
+    }
   }
 
   if (!cleanText) return;
@@ -201,17 +212,16 @@ export async function startSlack(): Promise<void> {
   L.info('authenticated', { botUserId });
 
   const onEvent = async ({ event }: { event: unknown }) => {
-    if (!event || typeof event !== 'object') return;
-    const ev = event as SlackEvent;
-    if (ev.bot_id || ev.subtype) return;
+    if (!isSlackEvent(event)) return;
+    if (event.bot_id || event.subtype) return;
     try {
       await handleEvent(
-        ev.user ?? '',
-        (ev.text ?? '').trim(),
-        ev.channel ?? '',
-        ev.ts ?? '',
-        ev.thread_ts,
-        ev.files,
+        event.user ?? '',
+        (event.text ?? '').trim(),
+        event.channel,
+        event.ts,
+        event.thread_ts,
+        event.files,
       );
     } catch (err) {
       L.error('event handler crash', { error: errMsg(err) });
@@ -227,7 +237,7 @@ export async function startSlack(): Promise<void> {
 
   const shutdown = () => {
     stopHeartbeat();
-    app.stop().catch(() => {});
+    try { app?.stop()?.catch(() => {}); } catch {}
   };
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);

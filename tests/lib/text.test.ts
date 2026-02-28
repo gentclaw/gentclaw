@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitMessage, stripAnsi } from '../../src/lib/text.js';
+import { splitMessage, stripAnsi, elapsedSec } from '../../src/lib/text.js';
 
 describe('splitMessage', () => {
   it('returns single chunk for short messages', () => {
@@ -25,6 +25,19 @@ describe('splitMessage', () => {
     const text = 'a'.repeat(20);
     const chunks = splitMessage(text, 8);
     expect(chunks.length).toBeGreaterThan(1);
+  });
+});
+
+describe('elapsedSec', () => {
+  it('returns seconds elapsed since timestamp', () => {
+    const fiveSecondsAgo = Date.now() - 5000;
+    const result = elapsedSec(fiveSecondsAgo);
+    expect(result).toBeGreaterThanOrEqual(4);
+    expect(result).toBeLessThanOrEqual(6);
+  });
+
+  it('returns 0 for current timestamp', () => {
+    expect(elapsedSec(Date.now())).toBe(0);
   });
 });
 

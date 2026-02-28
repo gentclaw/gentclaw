@@ -36,6 +36,11 @@ export function splitMessage(text: string, maxLen: number = MAX_MSG_LENGTH): str
   return chunks;
 }
 
+/** Seconds elapsed since a timestamp, rounded. */
+export function elapsedSec(since: number): number {
+  return Math.round((Date.now() - since) / 1000);
+}
+
 /** Strip ANSI escape codes (CSI sequences: colors, cursor movement, erase, etc.) */
 export function stripAnsi(text: string): string {
   // eslint-disable-next-line no-control-regex
