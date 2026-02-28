@@ -16,6 +16,7 @@ function isSessionShape(v: unknown): v is Session {
   return typeof s.sessionKey === 'string' && typeof s.agentId === 'string'
     && typeof s.createdAt === 'number' && typeof s.lastAccessAt === 'number';
 }
+
 const SAFE_RE = /[^a-zA-Z0-9_-]/g;
 
 function sanitize(key: string): string {
