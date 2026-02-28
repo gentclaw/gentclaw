@@ -102,6 +102,11 @@ describe('dispatchCommand', () => {
     expect(result!.response).toContain('last: ok');
   });
 
+  it('shows app version in /status', () => {
+    const result = dispatchCommand('/status', ctx);
+    expect(result!.response).toMatch(/gentclaw v\d+\.\d+\.\d+/);
+  });
+
   it('handles /agent without args (list)', () => {
     const result = dispatchCommand('/agent', ctx);
     expect(result!.response).toContain('coder');

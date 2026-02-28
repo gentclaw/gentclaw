@@ -1,6 +1,7 @@
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { execFileSync, spawn } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getAgents, getDefaultAgentId, getSettings, updateSettings } from './config.js';
 import { deleteSession, stopFlagPath } from './sessions.js';
 import { listProviders } from './providers.js';
@@ -17,6 +18,10 @@ import { cmdReply } from './types.js';
 import type { CmdResult, CmdContext } from './types.js';
 
 const L = log('commands');
+
+const PKG_VERSION: string = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../package.json'), 'utf-8'),
+).version;
 
 /** Split a command string into args, respecting single/double quotes. */
 function tokenizeArgs(cmd: string): string[] {
@@ -98,7 +103,7 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
     const snapshot = getStatusSnapshot();
 
     const lines = [
-      `*Status:*`,
+      `*Status:* gentclaw v${PKG_VERSION}`,
       `Agents: ${agentCount} (default: ${defaultId})`,
       `Providers: ${providers.join(', ')}`,
       `Active tasks: ${snapshot.totalQueuedTasks}`,
