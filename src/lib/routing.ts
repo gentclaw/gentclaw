@@ -22,7 +22,7 @@ function parseDirective(text: string): Directive {
   const trimmed = text.trimStart();
   if (!trimmed.startsWith('@')) return { kind: 'plain', body: text };
   let i = 1;
-  while (i < trimmed.length && !/\s/.test(trimmed[i]!)) i++;
+  while (i < trimmed.length && !/\s/.test(trimmed[i] ?? '')) i++;
   const ref = trimmed.slice(1, i);
   if (!ref) return { kind: 'plain', body: text };
   return { kind: 'mention', agentRef: ref, body: trimmed.slice(i).trimStart() };

@@ -58,7 +58,7 @@ export function startHeartbeat(): void {
 
     const timer = setInterval(() => {
       runSequential('heartbeat-' + id, () => fireHeartbeat(id, agent).then(() => {}))
-        .catch(err => L.error('heartbeat queue error', { agentId: id, error: err instanceof Error ? err.message : String(err) }));
+        .catch((err: unknown) => L.error('heartbeat queue error', { agentId: id, error: err instanceof Error ? err.message : String(err) }));
     }, intervalMs);
 
     // Unref so heartbeat timers don't keep process alive on shutdown

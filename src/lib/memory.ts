@@ -22,8 +22,8 @@ function trimEntries(content: string): string {
   let totalLines = entries.reduce((n, e) => n + e.split('\n').length, 0);
 
   while (totalLines > MEMORY_MAX_LINES && entries.length > 1) {
-    const dropped = entries.shift()!;
-    totalLines -= dropped.split('\n').length;
+    const dropped = entries.shift();
+    totalLines -= (dropped ?? '').split('\n').length;
   }
 
   return entries.join('');

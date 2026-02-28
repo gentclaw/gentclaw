@@ -5,7 +5,7 @@ import { listProviders, getProvider } from '../providers.js';
 import { auditLog } from '../audit.js';
 import { parseRef, parseSafeId, parseForceFlag } from '../parse-ref.js';
 import { cmdReply } from '../types.js';
-import type { CmdResult, CmdContext } from '../types.js';
+import type { Agent, CmdResult, CmdContext } from '../types.js';
 
 export function formatAgentList(): string {
   const agents = getAgents();
@@ -43,8 +43,8 @@ function agentAdd(args: string, ctx: CmdContext): CmdResult {
     return cmdReply('Usage: `/agent add <id> <name> <provider> [model]`');
   }
 
-  const [rawId, name, providerId, ...rest] = parts;
-  const id = parseSafeId(rawId!);
+  const [rawId = '', name = '', providerId = '', ...rest] = parts;
+  const id = parseSafeId(rawId);
   if (!id) return cmdReply('Invalid agent ID.');
 
   const settings = getSettings();
@@ -53,7 +53,7 @@ function agentAdd(args: string, ctx: CmdContext): CmdResult {
   }
 
   let providerDef;
-  try { providerDef = getProvider(providerId!); } catch {
+  try { providerDef = getProvider(providerId); } catch {
     return cmdReply(`Unknown provider: ${providerId}. Available: ${listProviders().join(', ')}`);
   }
 
@@ -62,7 +62,7 @@ function agentAdd(args: string, ctx: CmdContext): CmdResult {
 
   updateSettings(s => ({
     ...s,
-    agents: { ...s.agents, [id]: { name: name!, provider: providerId!, model, cwd } },
+    agents: { ...s.agents, [id]: { name, provider: providerId, model, cwd } },
     defaultAgent: s.defaultAgent || id,
   }));
 
@@ -80,15 +80,15 @@ function agentRemove(args: string, ctx: CmdContext): CmdResult {
   if (!agents[id]) return cmdReply(`Agent '${id}' not found.`);
 
   if (!hasForce) {
-    return cmdReply(`Remove '${id}' (${agents[id]!.name})?\nUse \`/agent remove ${id} --force\` to confirm.`);
+    return cmdReply(`Remove '${id}' (${agents[id]?.name ?? id})?\nUse \`/agent remove ${id} --force\` to confirm.`);
   }
 
   const settings = getSettings();
   const wasDefault = settings.defaultAgent === id;
 
   updateSettings(s => {
-    const updated = { ...s, agents: { ...s.agents } };
-    delete updated.agents![id];
+    const { [id]: _removed, ...remaining } = s.agents ?? {};
+    const updated = { ...s, agents: remaining as Record<string, Agent> };
     if (wasDefault) delete updated.defaultAgent;
     return updated;
   });
@@ -105,12 +105,12 @@ function agentProvider(args: string, ctx: CmdContext): CmdResult {
   if (!id) return cmdReply('Usage: `/agent provider <id> [provider] [--model M]`');
 
   const agents = getAgents();
-  if (!agents[id]) return cmdReply(`Agent '${id}' not found.`);
+  const existing = agents[id];
+  if (!existing) return cmdReply(`Agent '${id}' not found.`);
 
   const providerArg = parts[1];
   if (!providerArg) {
-    const a = agents[id]!;
-    return cmdReply(`${id} — ${a.provider}/${a.model}`);
+    return cmdReply(`${id} — ${existing.provider}/${existing.model}`);
   }
 
   try { getProvider(providerArg); } catch {
@@ -121,7 +121,9 @@ function agentProvider(args: string, ctx: CmdContext): CmdResult {
   const model = modelIdx !== -1 ? parts[modelIdx + 1] : undefined;
 
   updateSettings(s => {
-    const a = { ...s.agents![id]!, provider: providerArg };
+    const current = s.agents?.[id];
+    if (!current) return s;
+    const a = { ...current, provider: providerArg };
     if (model) a.model = model;
     return { ...s, agents: { ...s.agents, [id]: a } };
   });
@@ -137,7 +139,7 @@ export function dispatchAgentCommand(args: string, ctx: CmdContext): CmdResult {
   }
 
   const parts = args.trim().split(/\s+/);
-  const sub = parts[0]!.toLowerCase();
+  const sub = (parts[0] ?? '').toLowerCase();
   const subArgs = parts.slice(1).join(' ');
 
   if (sub === 'add') return agentAdd(subArgs, ctx);

@@ -16,12 +16,12 @@ import { auditLog } from './audit.js';
 import { SCRIPT_DIR } from './paths.js';
 import { elapsedSec } from './text.js';
 import { cmdReply } from './types.js';
-import type { CmdResult, CmdContext } from './types.js';
+import type { Agent, CmdResult, CmdContext } from './types.js';
 
 const L = log('commands');
 
 const require = createRequire(import.meta.url);
-const PKG_VERSION: string = require('../../package.json').version;
+const PKG_VERSION: string = (require('../../package.json') as { version: string }).version;
 
 /** Split a command string into args, respecting single/double quotes. */
 function tokenizeArgs(cmd: string): string[] {
@@ -79,7 +79,7 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
     if (customNames.length > 0) {
       lines.push('', '*Custom:*');
       for (const name of customNames) {
-        lines.push(`\`/${name}\` — ${custom[name]!.description}`);
+        lines.push(`\`/${name}\` — ${custom[name]?.description ?? ''}`);
       }
     }
 
@@ -88,7 +88,7 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
     if (skillNames.length > 0) {
       lines.push('', '*Skills:*');
       for (const name of skillNames) {
-        lines.push(`\`/${name}\` — ${skills[name]!.description}`);
+        lines.push(`\`/${name}\` — ${skills[name]?.description ?? ''}`);
       }
     }
 
@@ -129,12 +129,12 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
     const defaultId = getDefaultAgentId();
     if (!args.trim()) {
       const agents = getAgents();
-      return cmdReply(`Current model: ${agents[defaultId]!.model}`);
+      return cmdReply(`Current model: ${agents[defaultId]?.model ?? 'unknown'}`);
     }
     const target = args.trim();
     updateSettings(s => ({
       ...s,
-      agents: { ...s.agents, [defaultId]: { ...s.agents![defaultId]!, model: target } },
+      agents: { ...s.agents, [defaultId]: { ...s.agents?.[defaultId] as Agent, model: target } },
     }));
     return cmdReply(`Model set to: ${target}`);
   },
@@ -183,7 +183,7 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
 
     try {
       const parts = tokenizeArgs(cmd);
-      const output = execFileSync(parts[0]!, parts.slice(1), {
+      const output = execFileSync(parts[0] ?? '', parts.slice(1), {
         encoding: 'utf-8',
         timeout: 10_000,
         maxBuffer: 100_000,

@@ -43,6 +43,5 @@ export function elapsedSec(since: number): number {
 
 /** Strip ANSI escape codes (CSI sequences: colors, cursor movement, erase, etc.) */
 export function stripAnsi(text: string): string {
-  // eslint-disable-next-line no-control-regex
   return text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
 }

@@ -24,7 +24,7 @@ let botMentionRe: RegExp | undefined;
 function reaction(method: 'add' | 'remove', channel: string, timestamp: string, name: string): Promise<void> {
   return app.client.reactions[method]({ channel, timestamp, name })
     .then(() => {})
-    .catch(err => { L.warn(`reaction.${method} failed`, { name, error: errMsg(err) }); });
+    .catch((err: unknown) => { L.warn(`reaction.${method} failed`, { name, error: errMsg(err) }); });
 }
 
 /** Runtime type guard — validates object has expected SlackFile shape. */
@@ -167,7 +167,7 @@ async function handleEvent(
   };
 
   // Signal dispatch
-  reaction('add', channelId, ts, 'eyes');
+  void reaction('add', channelId, ts, 'eyes');
 
   // Process with per-session serialization
   await runSequential(sk, async () => {
@@ -180,9 +180,9 @@ async function handleEvent(
       L.error('processing error', { sessionKey: sk, error: errMsg(err) });
       await reply(channelId, replyTs, `Error: ${errMsg(err)}`);
     } finally {
-      reaction('remove', channelId, ts, 'eyes');
-      reaction('add', channelId, ts, outcome);
-      setTimeout(() => reaction('remove', channelId, ts, outcome), REACT_HOLD_MS);
+      void reaction('remove', channelId, ts, 'eyes');
+      void reaction('add', channelId, ts, outcome);
+      setTimeout(() => { void reaction('remove', channelId, ts, outcome); }, REACT_HOLD_MS);
     }
   });
 }
@@ -212,7 +212,7 @@ export async function startSlack(): Promise<void> {
 
   // Resolve bot user ID for self-mention filtering
   const authResult = await app.client.auth.test({ token: botToken });
-  botUserId = authResult.user_id as string | undefined;
+  botUserId = authResult.user_id;
   if (botUserId) botMentionRe = new RegExp(`<@${botUserId}>\\s*`, 'g');
   L.info('authenticated', { botUserId });
 

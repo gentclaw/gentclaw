@@ -116,7 +116,7 @@ export function getNestedField(obj: unknown, path: string): unknown {
 export function parseProviderOutput(def: Provider, raw: string): string {
   if (def.output === 'json' && def.jsonExtract) {
     try {
-      const obj = JSON.parse(raw);
+      const obj: unknown = JSON.parse(raw);
       const val = getNestedField(obj, def.jsonExtract);
       if (typeof val === 'string') return val.trim();
     } catch { /* fall through to raw */ }
@@ -171,7 +171,7 @@ function extractJsonlUsage(raw: string): TokenUsage | undefined {
 /** Pick first numeric field found by name from an object (camelCase/snake_case fallback) */
 function pickNumericField(obj: Record<string, unknown>, ...names: string[]): number | undefined {
   for (const n of names) {
-    if (typeof obj[n] === 'number') return obj[n] as number;
+    if (typeof obj[n] === 'number') return obj[n];
   }
   return undefined;
 }

@@ -6,7 +6,7 @@ import { PATHS } from './lib/paths.js';
 import { installService, uninstallService, serviceStatus } from './lib/service.js';
 import { DEFAULT_HEARTBEAT_INTERVAL_MIN } from './lib/constants.js';
 import { elapsedSec } from './lib/text.js';
-import type { AgentActivity, StatusSnapshot } from './lib/tracker.js';
+import type { StatusSnapshot } from './lib/tracker.js';
 
 const command = process.argv[2];
 
@@ -149,7 +149,7 @@ async function runHeartbeat(): Promise<void> {
 }
 
 function runAsync(label: string, fn: () => Promise<void>): void {
-  fn().catch(err => { console.error(`${label} failed:`, err); process.exit(1); });
+  fn().catch((err: unknown) => { console.error(`${label} failed:`, err); process.exit(1); });
 }
 
 const commands: Record<string, () => void> = {
@@ -191,7 +191,7 @@ const commands: Record<string, () => void> = {
 if (!command || command === '--help' || command === '-h') {
   showHelp();
 } else if (commands[command]) {
-  commands[command]!();
+  commands[command]();
 } else {
   console.error(`Unknown command: ${command}`);
   showHelp();

@@ -148,7 +148,7 @@ export async function runAgent(opts: RunOpts): Promise<RunAgentResult> {
     const field = provider.session?.captureIdField;
     if (!field) return;
     try {
-      const obj = JSON.parse(raw);
+      const obj: unknown = JSON.parse(raw);
       const id = getNestedField(obj, field);
       if (typeof id === 'string' && id) {
         setCliSessionId(opts.sessionKey, id);

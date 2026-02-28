@@ -5,13 +5,13 @@ import { validateTeam } from '../team.js';
 import { auditLog } from '../audit.js';
 import { parseRef, parseSafeId, parseForceFlag } from '../parse-ref.js';
 import { cmdReply } from '../types.js';
-import type { CmdResult, CmdContext } from '../types.js';
+import type { Team, CmdResult, CmdContext } from '../types.js';
 
 /** Parse "<team> <agent>" args with @-prefix stripping and lowercasing */
 function parseTeamAgentArgs(args: string): { teamId: string; agentId: string } | null {
   const parts = args.split(/\s+/).filter(Boolean);
   if (parts.length < 2) return null;
-  return { teamId: parseRef(parts[0]!), agentId: parseRef(parts[1]!) };
+  return { teamId: parseRef(parts[0] ?? ''), agentId: parseRef(parts[1] ?? '') };
 }
 
 export function teamList(): CmdResult {
@@ -49,18 +49,18 @@ export function teamAdd(args: string, ctx: CmdContext): CmdResult {
   if (parts.length < 3) {
     return cmdReply('Usage: `/team add <id> <display-name> <leader> [agent2...]` (name: no spaces)');
   }
-  const [rawId, name, rawLeader, ...extra] = parts;
-  const teamId = parseSafeId(rawId!);
+  const [rawId = '', name = '', rawLeader = '', ...extra] = parts;
+  const teamId = parseSafeId(rawId);
   if (!teamId) return cmdReply('Invalid team ID.');
 
   const settings = getSettings();
   if (settings.teams?.[teamId]) return cmdReply(`Team '${teamId}' already exists.`);
   if (settings.agents?.[teamId]) return cmdReply(`Team ID '${teamId}' conflicts with agent ID.`);
 
-  const leader = parseRef(rawLeader!);
+  const leader = parseRef(rawLeader);
   const agentIds = [leader, ...extra.map(parseRef)];
   const unique = [...new Set(agentIds)];
-  const team = { name: name!, agents: unique, leader };
+  const team = { name, agents: unique, leader };
 
   const agents = settings.agents ?? {};
   const err = validateTeam(team, agents);
@@ -81,13 +81,12 @@ export function teamRemove(args: string, ctx: CmdContext): CmdResult {
   if (!teams[teamId]) return cmdReply(`Team '${teamId}' not found.`);
 
   if (!hasForce) {
-    return cmdReply(`Remove team '${teamId}' (${teams[teamId]!.name})?\nUse \`/team remove ${teamId} --force\` to confirm.`);
+    return cmdReply(`Remove team '${teamId}' (${teams[teamId]?.name ?? teamId})?\nUse \`/team remove ${teamId} --force\` to confirm.`);
   }
 
   updateSettings(s => {
-    const updated = { ...s, teams: { ...s.teams } };
-    delete updated.teams![teamId];
-    return updated;
+    const { [teamId]: _removed, ...remaining } = s.teams ?? {};
+    return { ...s, teams: remaining as Record<string, Team> };
   });
 
   auditLog({ action: 'cmd:team-remove', sender: ctx.sender, detail: teamId, status: 'allowed' });
@@ -101,15 +100,18 @@ export function teamAddAgent(args: string, ctx: CmdContext): CmdResult {
   const { teamId, agentId } = parsed;
 
   const teams = getTeams();
-  if (!teams[teamId]) return cmdReply(`Team '${teamId}' not found.`);
+  const team = teams[teamId];
+  if (!team) return cmdReply(`Team '${teamId}' not found.`);
 
   const agents = getAgents();
   if (!agents[agentId]) return cmdReply(`Agent '${agentId}' not found.`);
-  if (teams[teamId]!.agents.includes(agentId)) return cmdReply(`Agent '${agentId}' is already in team '${teamId}'.`);
+  if (team.agents.includes(agentId)) return cmdReply(`Agent '${agentId}' is already in team '${teamId}'.`);
 
   updateSettings(s => {
-    const team = { ...s.teams![teamId]!, agents: [...s.teams![teamId]!.agents, agentId] };
-    return { ...s, teams: { ...s.teams, [teamId]: team } };
+    const existing = s.teams?.[teamId];
+    if (!existing) return s;
+    const updated = { ...existing, agents: [...existing.agents, agentId] };
+    return { ...s, teams: { ...s.teams, [teamId]: updated } };
   });
 
   auditLog({ action: 'cmd:team-addagent', sender: ctx.sender, detail: args, status: 'allowed' });
@@ -123,9 +125,8 @@ export function teamSetLeader(args: string, ctx: CmdContext): CmdResult {
   const { teamId, agentId } = parsed;
 
   const teams = getTeams();
-  if (!teams[teamId]) return cmdReply(`Team '${teamId}' not found.`);
-
-  const team = teams[teamId]!;
+  const team = teams[teamId];
+  if (!team) return cmdReply(`Team '${teamId}' not found.`);
   if (!team.agents.includes(agentId)) return cmdReply(`Agent '${agentId}' is not in team '${teamId}'.`);
   if (team.leader === agentId) return cmdReply(`Agent '${agentId}' is already leader of '${teamId}'.`);
 
@@ -145,15 +146,16 @@ export function teamRemoveAgent(args: string, ctx: CmdContext): CmdResult {
   const { teamId, agentId } = parsed;
 
   const teams = getTeams();
-  if (!teams[teamId]) return cmdReply(`Team '${teamId}' not found.`);
-
-  const team = teams[teamId]!;
+  const team = teams[teamId];
+  if (!team) return cmdReply(`Team '${teamId}' not found.`);
   if (!team.agents.includes(agentId)) return cmdReply(`Agent '${agentId}' is not in team '${teamId}'.`);
   if (team.leader === agentId) return cmdReply('Cannot remove leader. Use `/team setleader` first or remove the team.');
   if (team.agents.length <= 1) return cmdReply('Cannot remove last agent from team. Remove the team instead.');
 
   updateSettings(s => {
-    const updated = { ...s.teams![teamId]!, agents: s.teams![teamId]!.agents.filter(a => a !== agentId) };
+    const existing = s.teams?.[teamId];
+    if (!existing) return s;
+    const updated = { ...existing, agents: existing.agents.filter(a => a !== agentId) };
     return { ...s, teams: { ...s.teams, [teamId]: updated } };
   });
 

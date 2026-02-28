@@ -1,10 +1,11 @@
 /**
  * Per-key task serialization via explicit queue + async drain loop.
  * Tasks with the same key run sequentially, different keys run in parallel.
+ * In-process only — no cross-process coordination. Single daemon instance assumed.
  */
 type QueueEntry = {
   task: () => Promise<void>;
-  resolve: (value: void) => void;
+  resolve: () => void;
   reject: (reason: unknown) => void;
 };
 
@@ -30,17 +31,19 @@ export function runSequential(key: string, task: () => Promise<void>): Promise<v
       return;
     }
     queue.push({ task, resolve, reject });
-    if (!draining.has(key)) drain(key);
+    if (!draining.has(key)) void drain(key);
   });
 }
 
 async function drain(key: string): Promise<void> {
   draining.add(key);
-  const queue = queues.get(key)!;
-  while (queue.length > 0) {
-    const entry = queue.shift()!;
+  const queue = queues.get(key);
+  if (!queue) return;
+  let entry = queue.shift();
+  while (entry) {
     try { await entry.task(); entry.resolve(); }
     catch (err) { entry.reject(err); }
+    entry = queue.shift();
   }
   queues.delete(key);
   draining.delete(key);

@@ -11,7 +11,7 @@ const windows = new Map<string, Window>();
 /** Evict stale senders with no recent activity. Runs inline during check. */
 function evictStaleSenders(cutoff: number): void {
   for (const [key, win] of windows) {
-    if (win.timestamps.length === 0 || win.timestamps[win.timestamps.length - 1]! <= cutoff) {
+    if (win.timestamps.length === 0 || (win.timestamps.at(-1) ?? 0) <= cutoff) {
       windows.delete(key);
     }
   }

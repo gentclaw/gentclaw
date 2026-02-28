@@ -28,9 +28,9 @@ function runSubprocess(hook: HookDef, msg: InboundMsg): Promise<HookAction> {
   const timeout = hook.timeout ?? DEFAULT_TIMEOUT;
 
   return new Promise(resolve => {
-    const child = execFile(hook.command!, [], { timeout }, (err, stdout) => {
+    const child = execFile(hook.command ?? '', [], { timeout }, (err, stdout) => {
       if (err) {
-        L.warn('hook subprocess failed, allowing', { hook: hook.name, error: String(err) });
+        L.warn('hook subprocess failed, allowing', { hook: hook.name, error: err.message });
         resolve({ action: 'allow' });
         return;
       }

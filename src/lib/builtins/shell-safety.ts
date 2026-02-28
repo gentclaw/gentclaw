@@ -60,6 +60,6 @@ function extractBinary(cmd: string): string | null {
   const match = cmd.match(/^(\S+)/);
   if (!match?.[1]) return null;
   const token = match[1];
-  const base = token.includes('/') ? token.split('/').pop()! : token;
+  const base = token.includes('/') ? (token.split('/').pop() ?? token) : token;
   return base.toLowerCase();
 }

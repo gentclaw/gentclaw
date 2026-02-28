@@ -11,17 +11,17 @@ let minLevel: LogLevel = 'info';
 let logFile: string | null = null;
 
 /** @internal Deep-redact all string values in a data object (recurses into arrays/objects, circular-ref safe) */
-export function redactData(data: Record<string, unknown>, seen = new WeakSet<object>()): Record<string, unknown> {
+export function redactData(data: Record<string, unknown>, seen = new WeakSet()): Record<string, unknown> {
   seen.add(data);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(data)) {
     if (typeof v === 'string') out[k] = redactSecrets(v);
-    else if (Array.isArray(v)) out[k] = v.map(el =>
-      typeof el === 'string' ? redactSecrets(el)
-        : el && typeof el === 'object' ? (seen.has(el) ? '[circular]' : redactData(el as Record<string, unknown>, seen))
-          : el,
-    );
-    else if (v && typeof v === 'object') {
+    else if (Array.isArray(v)) out[k] = v.map((el: unknown) => {
+      if (typeof el === 'string') return redactSecrets(el);
+      if (el !== null && typeof el === 'object') return seen.has(el) ? '[circular]' : redactData(el as Record<string, unknown>, seen);
+      return el;
+    });
+    else if (v !== null && typeof v === 'object') {
       out[k] = seen.has(v) ? '[circular]' : redactData(v as Record<string, unknown>, seen);
     }
     else out[k] = v;
@@ -63,7 +63,14 @@ function emit(level: LogLevel, mod: string, msg: string, data?: Record<string, u
   }
 }
 
-export function log(mod: string) {
+type Logger = {
+  debug: (msg: string, data?: Record<string, unknown>) => void;
+  info: (msg: string, data?: Record<string, unknown>) => void;
+  warn: (msg: string, data?: Record<string, unknown>) => void;
+  error: (msg: string, data?: Record<string, unknown>) => void;
+};
+
+export function log(mod: string): Logger {
   return {
     debug: (msg: string, data?: Record<string, unknown>) => emit('debug', mod, msg, data),
     info: (msg: string, data?: Record<string, unknown>) => emit('info', mod, msg, data),

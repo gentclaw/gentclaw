@@ -7,6 +7,11 @@ import { log } from './log.js';
 import { errMsg } from './errors.js';
 import type { Session } from './types.js';
 
+/**
+ * File-based session persistence — single daemon instance assumed.
+ * No distributed locking; concurrent writes from multiple daemons would race.
+ * atomicWriteJson provides crash safety but not multi-process coordination.
+ */
 const L = log('sessions');
 
 /** Lightweight runtime check — rejects corrupt session files */

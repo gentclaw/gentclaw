@@ -27,11 +27,11 @@ export function parseFrontmatter(content: string): { meta: Record<string, string
   const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
   if (!match) return { meta, body: content.trim() };
   const [, yamlBlock, body] = match;
-  for (const line of yamlBlock!.split('\n')) {
+  for (const line of (yamlBlock ?? '').split('\n')) {
     const kv = line.match(/^(\S+):\s*(.+)$/);
-    if (kv) meta[kv[1]!] = kv[2]!.trim();
+    if (kv?.[1] && kv[2]) meta[kv[1]] = kv[2].trim();
   }
-  return { meta, body: body!.trim() };
+  return { meta, body: (body ?? '').trim() };
 }
 
 /** Cached skills with mtime-based invalidation to avoid re-reading filesystem on every command */
