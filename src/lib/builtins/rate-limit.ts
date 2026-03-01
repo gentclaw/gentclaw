@@ -4,6 +4,7 @@ type Window = { timestamps: number[] };
 type Config = { max: number; windowSec: number };
 
 const DEFAULT_CONFIG: Config = { max: 10, windowSec: 60 };
+const EVICT_INTERVAL_MS = 5 * 60 * 1_000;
 
 /** Per-sender sliding window. Key = senderId. */
 const windows = new Map<string, Window>();
@@ -31,7 +32,6 @@ export function checkRateLimit(
   const sender = msg.sender;
 
   // Evict stale senders: by count threshold or every 5 min
-  const EVICT_INTERVAL_MS = 5 * 60 * 1_000;
   if (windows.size > 50 || (now - lastEvictAt > EVICT_INTERVAL_MS && windows.size > 0)) {
     evictStaleSenders(cutoff);
   }
