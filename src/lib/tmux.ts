@@ -44,7 +44,7 @@ function ensureSession(): void {
 }
 
 /** Escape a string for safe embedding in a single-quoted shell argument. */
-function shellEscape(s: string): string {
+export function shellEscape(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'";
 }
 
