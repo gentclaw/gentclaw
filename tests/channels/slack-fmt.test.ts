@@ -67,4 +67,59 @@ describe('formatForSlack', () => {
   it('passes through Slack-native formatting unchanged', () => {
     expect(formatForSlack('_italic_ ~strike~ `code`')).toBe('_italic_ ~strike~ `code`');
   });
+
+  // --- Link transforms ---
+
+  it('converts markdown links to Slack links', () => {
+    expect(formatForSlack('See [docs](https://example.com) here'))
+      .toBe('See <https://example.com|docs> here');
+  });
+
+  it('converts multiple links on one line', () => {
+    expect(formatForSlack('[a](https://a.com) and [b](https://b.com)'))
+      .toBe('<https://a.com|a> and <https://b.com|b>');
+  });
+
+  it('converts image links to Slack links', () => {
+    expect(formatForSlack('![screenshot](https://img.com/shot.png)'))
+      .toBe('<https://img.com/shot.png|screenshot>');
+  });
+
+  it('preserves links inside code blocks', () => {
+    const text = '```\n[link](https://example.com)\n```';
+    expect(formatForSlack(text)).toBe(text);
+  });
+
+  // --- Strikethrough ---
+
+  it('converts ~~strikethrough~~ to ~strike~', () => {
+    expect(formatForSlack('This is ~~deleted~~ text')).toBe('This is ~deleted~ text');
+  });
+
+  it('preserves strikethrough inside code blocks', () => {
+    const text = '```\n~~not strike~~\n```';
+    expect(formatForSlack(text)).toBe(text);
+  });
+
+  // --- Asterisk bullet lists ---
+
+  it('converts * bullet lists to • bullets', () => {
+    const text = '* item one\n* item two\n* item three';
+    expect(formatForSlack(text)).toBe('• item one\n• item two\n• item three');
+  });
+
+  it('does not convert * inside text (bold)', () => {
+    expect(formatForSlack('This is **bold** text')).toBe('This is *bold* text');
+  });
+
+  it('preserves * bullets inside code blocks', () => {
+    const text = '```\n* not a bullet\n```';
+    expect(formatForSlack(text)).toBe(text);
+  });
+
+  it('handles mixed formatting: header + link + bold', () => {
+    const text = '# **Getting Started**\nCheck the [docs](https://docs.com) for ~~old~~ info';
+    expect(formatForSlack(text))
+      .toBe('*Getting Started*\nCheck the <https://docs.com|docs> for ~old~ info');
+  });
 });

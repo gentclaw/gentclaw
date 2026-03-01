@@ -13,6 +13,14 @@ function markdownToMrkdwn(segment: string): string {
   );
   // **bold** → *bold* (Slack uses single asterisks)
   result = result.replace(/\*\*([^*]+)\*\*/g, '*$1*');
+  // ~~strikethrough~~ → ~strike~ (Slack uses single tildes)
+  result = result.replace(/~~([^~]+)~~/g, '~$1~');
+  // ![alt](url) → <url|alt> (images — Slack can't inline, but makes clickable)
+  result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<$2|$1>');
+  // [text](url) → <url|text> (Slack's native link format)
+  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<$2|$1>');
+  // * bullet at line start → • (prevents Slack bold collision)
+  result = result.replace(/^\* /gm, '• ');
   // Horizontal rules → em-dash
   result = result.replace(/^---+$/gm, '———');
   return result;
