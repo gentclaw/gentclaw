@@ -1,7 +1,8 @@
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { PATHS } from './paths.js';
 import { atomicWriteJson } from './fs-utils.js';
 import { ConfigError, errMsg } from './errors.js';
+import { createMtimeCache } from './mtime-cache.js';
 import type { Settings, Agent, Team } from './types.js';
 
 /** Lightweight runtime check — rejects obviously corrupt settings files */
@@ -14,25 +15,21 @@ function isSettingsShape(v: unknown): v is Settings {
   return true;
 }
 
-let cached: { settings: Settings; mtime: number } | null = null;
+function loadSettings(): Settings {
+  const raw = readFileSync(PATHS.settings, 'utf-8');
+  const parsed = JSON.parse(raw) as unknown;
+  if (!isSettingsShape(parsed)) throw new ConfigError('Settings file has invalid structure');
+  return parsed;
+}
+
+const settingsCache = createMtimeCache(() => PATHS.settings, loadSettings);
 
 /** Read settings with mtime-based cache. Avoids re-parsing on every access. */
 export function getSettings(): Settings {
   try {
-    const mt = statSync(PATHS.settings).mtimeMs;
-    if (cached && cached.mtime === mt) return cached.settings;
-    const raw = readFileSync(PATHS.settings, 'utf-8');
-    const parsed = JSON.parse(raw) as unknown;
-    if (!isSettingsShape(parsed)) {
-      throw new ConfigError('Settings file has invalid structure');
-    }
-    const settings = parsed;
-    cached = { settings, mtime: mt };
-    return settings;
+    return settingsCache.get();
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return {};
-    }
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {};
     const code = (err as NodeJS.ErrnoException).code;
     throw new ConfigError(`Failed to read settings${code ? ` (${code})` : ''}: ${errMsg(err)}`);
   }
@@ -43,14 +40,14 @@ export function updateSettings(mutator: (s: Settings) => Settings): Settings {
   const current = getSettings();
   const updated = mutator(current);
   atomicWriteJson(PATHS.settings, updated);
-  cached = null; // force re-read
+  settingsCache.clear();
   return updated;
 }
 
 /** Write settings directly (for initial creation). */
 export function writeSettings(settings: Settings): void {
   atomicWriteJson(PATHS.settings, settings);
-  cached = null;
+  settingsCache.clear();
 }
 
 /** Check whether any agents are configured. */
@@ -88,5 +85,5 @@ export function getDefaultAgentId(): string {
 
 /** Invalidate the cache (for testing or after external file changes). */
 export function clearConfigCache(): void {
-  cached = null;
+  settingsCache.clear();
 }

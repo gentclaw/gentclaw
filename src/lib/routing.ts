@@ -28,50 +28,41 @@ function parseDirective(text: string): Directive {
   return { kind: 'mention', agentRef: ref, body: trimmed.slice(i).trimStart() };
 }
 
-/** Fingerprint-based cached index — rebuilds only when data changes. Fetch supplies data to both fingerprint and build to avoid double-fetching. */
-function createCachedIndex<D, T>(
-  fetch: () => D,
-  fingerprint: (data: D) => string,
-  build: (data: D) => Map<string, T>,
-): () => Map<string, T> {
-  let cached: Map<string, T> | null = null;
-  let fp = '';
-  return () => {
-    const data = fetch();
-    const newFp = fingerprint(data);
-    if (cached && fp === newFp) return cached;
-    cached = build(data);
-    fp = newFp;
-    return cached;
-  };
+// Agent name index — fingerprint-based rebuild on change
+let agentFp = '';
+let agentIdx: Map<string, string> | null = null;
+
+function getNameIndex(): Map<string, string> {
+  const agents = getAgents();
+  const fp = Object.entries(agents).map(([id, c]) => `${id}:${c.name}`).sort().join('|');
+  if (agentIdx && agentFp === fp) return agentIdx;
+  const idx = new Map<string, string>();
+  for (const [id, cfg] of Object.entries(agents)) {
+    idx.set(id.toLowerCase(), id);
+    if (cfg.name) idx.set(cfg.name.toLowerCase(), id);
+  }
+  agentIdx = idx;
+  agentFp = fp;
+  return idx;
 }
 
-const getNameIndex = createCachedIndex(
-  getAgents,
-  (agents) => Object.entries(agents).map(([id, c]) => `${id}:${c.name}`).sort().join('|'),
-  (agents) => {
-    const idx = new Map<string, string>();
-    for (const [id, cfg] of Object.entries(agents)) {
-      idx.set(id.toLowerCase(), id);
-      if (cfg.name) idx.set(cfg.name.toLowerCase(), id);
-    }
-    return idx;
-  },
-);
-
+// Team name index — fingerprint-based rebuild on change
 type TeamEntry = { teamId: string; leaderId: string };
+let teamFp = '';
+let teamIdx: Map<string, TeamEntry> | null = null;
 
 /** IDs take priority over display names (names inserted first, IDs override on collision). */
-const getTeamIndex = createCachedIndex(
-  getTeams,
-  (teams) => Object.entries(teams).map(([id, t]) => `${id}:${t.name}:${t.leader}:${t.agents.join(',')}`).sort().join('|'),
-  (teams) => {
-    const idx = new Map<string, TeamEntry>();
-    for (const [id, t] of Object.entries(teams)) idx.set(t.name.toLowerCase(), { teamId: id, leaderId: t.leader });
-    for (const [id, t] of Object.entries(teams)) idx.set(id.toLowerCase(), { teamId: id, leaderId: t.leader });
-    return idx;
-  },
-);
+function getTeamIndex(): Map<string, TeamEntry> {
+  const teams = getTeams();
+  const fp = Object.entries(teams).map(([id, t]) => `${id}:${t.name}:${t.leader}:${t.agents.join(',')}`).sort().join('|');
+  if (teamIdx && teamFp === fp) return teamIdx;
+  const idx = new Map<string, TeamEntry>();
+  for (const [id, t] of Object.entries(teams)) idx.set(t.name.toLowerCase(), { teamId: id, leaderId: t.leader });
+  for (const [id, t] of Object.entries(teams)) idx.set(id.toLowerCase(), { teamId: id, leaderId: t.leader });
+  teamIdx = idx;
+  teamFp = fp;
+  return idx;
+}
 
 /** 4-priority routing: pre-routed → @mention (agent/team) → sticky session → default */
 export function resolveRoute(msg: InboundMsg): RouteResult {
