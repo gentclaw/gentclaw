@@ -13,9 +13,10 @@ import { dispatchTeamCommand, teamList } from './commands/team.js';
 import { dispatchAgentCommand, formatAgentList } from './commands/agent.js';
 import { log } from './log.js';
 import { auditLog } from './audit.js';
+import { errMsg } from './errors.js';
 import { SCRIPT_DIR } from './paths.js';
-import { SUBPROCESS_ENV } from './constants.js';
-import { elapsedSec } from './text.js';
+import { SUBPROCESS_ENV, MAX_MEMORY_PREVIEW, MAX_MEMORY_PER_AGENT, MAX_ERROR_PREVIEW } from './constants.js';
+import { elapsedSec, formatDurationSec } from './text.js';
 import { cmdReply } from './types.js';
 import type { CmdResult, CmdContext } from './types.js';
 
@@ -46,6 +47,7 @@ function tokenizeArgs(cmd: string): string[] {
 }
 
 const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
+  /* ── Info / Config ─────────────────────────────────── */
   help: () => {
     const lines = [
       '*Commands:*',
@@ -119,7 +121,7 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
       const last = activity.recentHistory[0];
       if (last) {
         const status = last.success ? 'ok' : 'error';
-        lines.push(`  last: ${status} (${Math.round(last.durationMs / 1000)}s, ${elapsedSec(last.finishedAt)}s ago)`);
+        lines.push(`  last: ${status} (${formatDurationSec(last.durationMs)}, ${elapsedSec(last.finishedAt)}s ago)`);
       }
     }
 
@@ -160,6 +162,7 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
     return cmdReply(`Default agent set to: ${target}`);
   },
 
+  /* ── Session / State ────────────────────────────────── */
   reset: (_args, ctx) => {
     deleteSession(ctx.sessionKey);
     return cmdReply('Session reset. Next message starts fresh.');
@@ -173,6 +176,7 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
     return cmdReply('Stop signal sent.');
   },
 
+  /* ── System / Ops ───────────────────────────────────── */
   bash: (args, ctx) => {
     const cmd = args.trim();
     if (!cmd) return cmdReply('Usage: `/bash <command>`');
@@ -195,8 +199,7 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
       const trimmed = output.trim();
       return cmdReply(trimmed ? `\`\`\`\n${trimmed}\n\`\`\`` : '(no output)');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return cmdReply(`Error: ${msg.slice(0, 500)}`);
+      return cmdReply(`Error: ${errMsg(err).slice(0, MAX_ERROR_PREVIEW)}`);
     }
   },
 
@@ -217,13 +220,13 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
     if (sub === 'show') {
       if (isShared) {
         const mem = readSharedMemory();
-        return cmdReply(mem ? `*Shared memory:*\n\`\`\`\n${mem.slice(0, 3000)}\n\`\`\`` : 'No shared memory.');
+        return cmdReply(mem ? `*Shared memory:*\n\`\`\`\n${mem.slice(0, MAX_MEMORY_PREVIEW)}\n\`\`\`` : 'No shared memory.');
       }
       const agents = getAgents();
       const lines: string[] = [];
       for (const id of Object.keys(agents)) {
         const mem = readAgentMemory(id);
-        if (mem) lines.push(`*${id}:*\n\`\`\`\n${mem.slice(0, 1000)}\n\`\`\``);
+        if (mem) lines.push(`*${id}:*\n\`\`\`\n${mem.slice(0, MAX_MEMORY_PER_AGENT)}\n\`\`\``);
       }
       return cmdReply(lines.length > 0 ? lines.join('\n\n') : 'No agent memories.');
     }

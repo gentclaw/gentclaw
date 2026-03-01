@@ -41,6 +41,11 @@ export function elapsedSec(since: number): number {
   return Math.round((Date.now() - since) / 1000);
 }
 
+/** Format milliseconds as rounded seconds string (e.g. 1500 → "2s"). */
+export function formatDurationSec(ms: number): string {
+  return `${Math.round(ms / 1000)}s`;
+}
+
 /** Strip ANSI escape codes (CSI sequences: colors, cursor movement, erase, etc.) */
 export function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitMessage, stripAnsi, elapsedSec } from '../../src/lib/text.js';
+import { splitMessage, stripAnsi, elapsedSec, formatDurationSec } from '../../src/lib/text.js';
 
 describe('splitMessage', () => {
   it('returns single chunk for short messages', () => {
@@ -38,6 +38,22 @@ describe('elapsedSec', () => {
 
   it('returns 0 for current timestamp', () => {
     expect(elapsedSec(Date.now())).toBe(0);
+  });
+});
+
+describe('formatDurationSec', () => {
+  it('formats milliseconds as rounded seconds', () => {
+    expect(formatDurationSec(1500)).toBe('2s');
+    expect(formatDurationSec(3000)).toBe('3s');
+    expect(formatDurationSec(500)).toBe('1s');
+  });
+
+  it('returns 0s for zero', () => {
+    expect(formatDurationSec(0)).toBe('0s');
+  });
+
+  it('handles large values', () => {
+    expect(formatDurationSec(90_000)).toBe('90s');
   });
 });
 

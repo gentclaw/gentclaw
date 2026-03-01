@@ -5,7 +5,7 @@ import { listProviders } from './lib/providers.js';
 import { PATHS } from './lib/paths.js';
 import { installService, uninstallService, serviceStatus } from './lib/service.js';
 import { DEFAULT_HEARTBEAT_INTERVAL_MIN } from './lib/constants.js';
-import { elapsedSec } from './lib/text.js';
+import { elapsedSec, formatDurationSec } from './lib/text.js';
 import type { StatusSnapshot } from './lib/tracker.js';
 
 const command = process.argv[2];
@@ -92,7 +92,7 @@ function showStatus(): void {
       const last = activity.recentHistory[0];
       if (last) {
         const status = last.success ? 'ok' : 'error';
-        console.log(`    last: ${status} (${Math.round(last.durationMs / 1000)}s, ${elapsedSec(last.finishedAt)}s ago)`);
+        console.log(`    last: ${status} (${formatDurationSec(last.durationMs)}, ${elapsedSec(last.finishedAt)}s ago)`);
       }
     }
   } catch {

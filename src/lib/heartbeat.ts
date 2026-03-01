@@ -6,6 +6,7 @@ import {
   DEFAULT_HEARTBEAT_INTERVAL_MIN,
   HEARTBEAT_FALLBACK_PROMPT,
 } from './constants.js';
+import { errMsg } from './errors.js';
 import type { Agent, InboundMsg } from './types.js';
 
 const L = log('heartbeat');
@@ -38,7 +39,7 @@ export async function fireHeartbeat(agentId: string, agent: Agent): Promise<stri
     L.info('heartbeat response', { agentId, len: response.length });
     return response;
   } catch (err) {
-    L.error('heartbeat failed', { agentId, error: err instanceof Error ? err.message : String(err) });
+    L.error('heartbeat failed', { agentId, error: errMsg(err) });
     return null;
   }
 }
@@ -58,7 +59,7 @@ export function startHeartbeat(): void {
 
     const timer = setInterval(() => {
       runSequential('heartbeat-' + id, () => fireHeartbeat(id, agent).then(() => {}))
-        .catch((err: unknown) => L.error('heartbeat queue error', { agentId: id, error: err instanceof Error ? err.message : String(err) }));
+        .catch((err: unknown) => L.error('heartbeat queue error', { agentId: id, error: errMsg(err) }));
     }, intervalMs);
 
     // Unref so heartbeat timers don't keep process alive on shutdown
