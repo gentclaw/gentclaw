@@ -64,6 +64,14 @@ function getTeamIndex(): Map<string, TeamEntry> {
   return idx;
 }
 
+/** Reset routing caches (for testing). */
+export function clearRoutingCache(): void {
+  agentFp = '';
+  agentIdx = null;
+  teamFp = '';
+  teamIdx = null;
+}
+
 /** 4-priority routing: pre-routed → @mention (agent/team) → sticky session → default */
 export function resolveRoute(msg: InboundMsg): RouteResult {
   const agents = getAgents();

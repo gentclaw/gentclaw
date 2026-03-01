@@ -30,9 +30,11 @@ describe('createMtimeCache', () => {
     let calls = 0;
     const cache = createMtimeCache(testFile, () => { calls++; return 'loaded'; });
     cache.get();
-    // Wait 10ms then touch file to ensure mtime differs
-    await new Promise(r => setTimeout(r, 10));
+    // Bump mtime by 1s to handle filesystems with 1s granularity (HFS+, ext3)
+    const future = new Date(Date.now() + 1000);
     writeFileSync(testFile, '{"v":2}', 'utf-8');
+    const { utimesSync } = await import('node:fs');
+    utimesSync(testFile, future, future);
     cache.get();
     expect(calls).toBe(2);
   });
