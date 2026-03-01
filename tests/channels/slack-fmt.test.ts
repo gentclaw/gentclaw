@@ -90,6 +90,11 @@ describe('formatForSlack', () => {
     expect(formatForSlack(text)).toBe(text);
   });
 
+  it('handles Wikipedia-style URLs with parentheses', () => {
+    expect(formatForSlack('[Foo](https://en.wikipedia.org/wiki/Foo_(bar))'))
+      .toBe('<https://en.wikipedia.org/wiki/Foo_(bar)|Foo>');
+  });
+
   // --- Strikethrough ---
 
   it('converts ~~strikethrough~~ to ~strike~', () => {

@@ -25,6 +25,8 @@ const REACT_HOLD_MS  = 5_000;
 let app: App;
 let botUserId: string | undefined;
 let botMentionRe: RegExp | undefined;
+/** Pending reaction-removal timers — cleared on shutdown to avoid post-stop API calls. */
+const holdTimers = new Set<ReturnType<typeof setTimeout>>();
 
 /** Fire-and-forget Slack reaction. Returns Promise for testability; callers may ignore. */
 function reaction(method: 'add' | 'remove', channel: string, timestamp: string, name: string): Promise<void> {
@@ -193,7 +195,8 @@ async function handleEvent(
       // Transition: working → outcome
       void reaction('remove', channelId, ts, REACT_WORKING);
       void reaction('add', channelId, ts, outcome);
-      setTimeout(() => { void reaction('remove', channelId, ts, outcome); }, REACT_HOLD_MS);
+      const t = setTimeout(() => { holdTimers.delete(t); void reaction('remove', channelId, ts, outcome); }, REACT_HOLD_MS);
+      holdTimers.add(t);
     }
   });
 }
@@ -252,6 +255,8 @@ export async function startSlack(): Promise<void> {
   startHeartbeat();
 
   const shutdown = () => {
+    for (const t of holdTimers) clearTimeout(t);
+    holdTimers.clear();
     stopHeartbeat();
     app?.stop()?.catch(() => {});
   };

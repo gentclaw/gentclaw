@@ -45,7 +45,6 @@
   },
   "scripts": {
     "build": "tsc && chmod +x dist/cli.js",
-    "build:main": "tsc && chmod +x dist/cli.js",
     "lint": "eslint src/",
     "test": "vitest run",
     "start": "node dist/cli.js start",

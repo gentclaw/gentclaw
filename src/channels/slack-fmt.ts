@@ -16,9 +16,10 @@ function markdownToMrkdwn(segment: string): string {
   // ~~strikethrough~~ → ~strike~ (Slack uses single tildes)
   result = result.replace(/~~([^~]+)~~/g, '~$1~');
   // ![alt](url) → <url|alt> (images — Slack can't inline, but makes clickable)
-  result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<$2|$1>');
+  // URL group allows one level of balanced parens for Wikipedia-style URLs: /wiki/Foo_(bar)
+  result = result.replace(/!\[([^\]]*)\]\(([^()\s]*(?:\([^)]*\)[^()\s]*)*)\)/g, '<$2|$1>');
   // [text](url) → <url|text> (Slack's native link format)
-  result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<$2|$1>');
+  result = result.replace(/\[([^\]]+)\]\(([^()\s]*(?:\([^)]*\)[^()\s]*)*)\)/g, '<$2|$1>');
   // * bullet at line start → • (prevents Slack bold collision)
   result = result.replace(/^\* /gm, '• ');
   // Horizontal rules → em-dash

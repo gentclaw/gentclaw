@@ -186,6 +186,7 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
     try {
       const parts = tokenizeArgs(cmd);
       if (!parts[0]) return cmdReply('Empty command.');
+      /** Intentionally inherits full process.env — user-facing shell needs PATH, HOME, etc. Unlike agent spawns (SPAWN_ENV), this is not a long-lived child. */
       const output = execFileSync(parts[0], parts.slice(1), {
         encoding: 'utf-8',
         timeout: 10_000,

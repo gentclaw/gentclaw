@@ -18,9 +18,9 @@ vi.mock('../../src/lib/sessions.js', () => ({
   stopFlagPath: (key: string) => `/tmp/flags/stop-${key}`,
 }));
 
-const mockRunCommand = vi.fn<() => Promise<{ response: string; exitCode: number }>>();
+const mockRunCommand = vi.fn<(cmd: string, args: string[], opts: unknown) => Promise<{ response: string; exitCode: number }>>();
 vi.mock('../../src/lib/process-runner.js', () => ({
-  runCommand: (...args: unknown[]) => mockRunCommand(),
+  runCommand: (...args: unknown[]) => mockRunCommand(args[0] as string, args[1] as string[], args[2]),
 }));
 
 vi.mock('../../src/lib/tmux.js', () => ({
@@ -91,6 +91,22 @@ describe('runAgent', () => {
 
     expect(mockSetCliSessionId).toHaveBeenCalled();
     expect(result.text).toBe('agent response');
+  });
+
+  it('passes provider command and built args to runCommand', async () => {
+    mockBuildProviderArgs.mockReturnValue(['--verbose', '-p', 'test msg']);
+
+    await runAgent({
+      agentId: 'coder',
+      message: 'test msg',
+      sessionKey: 'sess1',
+    });
+
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      'test-cli',
+      ['--verbose', '-p', 'test msg'],
+      expect.objectContaining({ cwd: '/tmp/agent' }),
+    );
   });
 
   it('returns parsed text from provider output', async () => {
