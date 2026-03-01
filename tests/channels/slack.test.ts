@@ -136,29 +136,36 @@ describe('slack channel', () => {
     );
   });
 
-  it('adds eyes reaction on dispatch and outcome reaction after', async () => {
+  it('follows 4-phase emoji lifecycle: eyes → gear → outcome', async () => {
     await eventHandlers['message']!({
       event: { user: 'U1', text: 'test', channel: 'C1', ts: '1.0' },
     });
-    expect(mockReactionsAdd).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'eyes', channel: 'C1', timestamp: '1.0' }),
-    );
-    expect(mockReactionsRemove).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'eyes' }),
-    );
-    expect(mockReactionsAdd).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'white_check_mark' }),
-    );
+
+    const adds = mockReactionsAdd.mock.calls.map((c: { name: string }[]) => c[0].name);
+    const removes = mockReactionsRemove.mock.calls.map((c: { name: string }[]) => c[0].name);
+
+    // Phase 1: eyes added on receive
+    expect(adds[0]).toBe('eyes');
+    // Phase 2: eyes removed + gear added when processing starts
+    expect(removes[0]).toBe('eyes');
+    expect(adds[1]).toBe('gear');
+    // Phase 3: gear removed + outcome added when done
+    expect(removes[1]).toBe('gear');
+    expect(adds[2]).toBe('white_check_mark');
   });
 
-  it('sets x reaction on processing error', async () => {
+  it('sets x reaction and removes gear on processing error', async () => {
     mockProcessMessage.mockRejectedValueOnce(new Error('agent failed'));
     await eventHandlers['message']!({
       event: { user: 'U1', text: 'test', channel: 'C1', ts: '1.0' },
     });
-    expect(mockReactionsAdd).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'x' }),
-    );
+
+    const adds = mockReactionsAdd.mock.calls.map((c: { name: string }[]) => c[0].name);
+    const removes = mockReactionsRemove.mock.calls.map((c: { name: string }[]) => c[0].name);
+
+    // gear should be removed, x should be added as outcome
+    expect(removes).toContain('gear');
+    expect(adds).toContain('x');
     expect(mockPostMessage).toHaveBeenCalledWith(
       expect.objectContaining({ text: expect.stringContaining('Error: agent failed') }),
     );

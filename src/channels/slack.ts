@@ -14,7 +14,13 @@ import type { InboundMsg } from '../lib/types.js';
 const MAX_FILE_SIZE = 100_000; // 100KB — skip large files
 
 const L = log('slack');
-const REACT_HOLD_MS = 3_000;
+/** Status reaction names — mirrors claw's 4-phase lifecycle: received → working → done/error */
+const REACT_RECEIVED = 'eyes';
+const REACT_WORKING  = 'gear';
+const REACT_DONE     = 'white_check_mark';
+const REACT_ERROR    = 'x';
+/** Hold done/error reaction visible before auto-removing to keep threads clean */
+const REACT_HOLD_MS  = 5_000;
 
 let app: App;
 let botUserId: string | undefined;
@@ -166,21 +172,26 @@ async function handleEvent(
     channel: 'slack',
   };
 
-  // Signal dispatch
-  void reaction('add', channelId, ts, 'eyes');
+  // Signal received
+  void reaction('add', channelId, ts, REACT_RECEIVED);
 
   // Process with per-session serialization
   await runSequential(sk, async () => {
-    let outcome: 'white_check_mark' | 'x' = 'white_check_mark';
+    // Transition: received → working
+    void reaction('remove', channelId, ts, REACT_RECEIVED);
+    void reaction('add', channelId, ts, REACT_WORKING);
+
+    let outcome: typeof REACT_DONE | typeof REACT_ERROR = REACT_DONE;
     try {
       const response = await processMessage(msg);
       await reply(channelId, replyTs, response);
     } catch (err) {
-      outcome = 'x';
+      outcome = REACT_ERROR;
       L.error('processing error', { sessionKey: sk, error: errMsg(err) });
       await reply(channelId, replyTs, `Error: ${errMsg(err)}`);
     } finally {
-      void reaction('remove', channelId, ts, 'eyes');
+      // Transition: working → outcome
+      void reaction('remove', channelId, ts, REACT_WORKING);
       void reaction('add', channelId, ts, outcome);
       setTimeout(() => { void reaction('remove', channelId, ts, outcome); }, REACT_HOLD_MS);
     }
