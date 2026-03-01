@@ -14,6 +14,7 @@ import { dispatchAgentCommand, formatAgentList } from './commands/agent.js';
 import { log } from './log.js';
 import { auditLog } from './audit.js';
 import { SCRIPT_DIR } from './paths.js';
+import { SUBPROCESS_ENV } from './constants.js';
 import { elapsedSec } from './text.js';
 import { cmdReply } from './types.js';
 import type { CmdResult, CmdContext } from './types.js';
@@ -238,10 +239,7 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
       cwd: SCRIPT_DIR,
       detached: true,
       stdio: 'ignore',
-      env: {
-        PATH: process.env.PATH || '',
-        HOME: process.env.HOME || '',
-      },
+      env: SUBPROCESS_ENV,
     });
     child.unref();
     return cmdReply('Reloading... (build + restart service)');

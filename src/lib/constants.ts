@@ -22,22 +22,26 @@ export const HEARTBEAT_FALLBACK_PROMPT = 'Quick status check: Any pending tasks?
 export const SERVICE_LABEL = 'com.gentclaw.agent';
 
 /**
- * Explicit env allowlist for child processes — never spread process.env.
+ * Shared env base for child processes — never spread process.env.
  * Captured once at module load (daemon env never mutates at runtime).
+ * FORCE_COLOR prevents color leakage into logs/programmatic output.
+ */
+const BASE_ENV = {
+  PATH: process.env.PATH || '',
+  HOME: process.env.HOME || '',
+  FORCE_COLOR: '0',
+} as const;
+
+/** Minimal env for non-Claude subprocesses. */
+export const SUBPROCESS_ENV = BASE_ENV;
+
+/**
+ * Env for Claude CLI child processes.
  * CLAUDECODE intentionally omitted — triggers nested session detection.
  * CLAUDE_CODE_ENTRYPOINT hardcoded to 'cli' — launchd env lacks this var,
  * causing SDK auth failure ("Not logged in") when inherited as empty string.
  */
 export const SPAWN_ENV = {
-  PATH: process.env.PATH || '',
-  HOME: process.env.HOME || '',
-  FORCE_COLOR: '0',
+  ...BASE_ENV,
   CLAUDE_CODE_ENTRYPOINT: 'cli',
-} as const;
-
-/** Minimal env for non-Claude subprocesses (no CLAUDE_CODE_ENTRYPOINT needed). FORCE_COLOR prevents color leakage into logs/programmatic output. */
-export const SUBPROCESS_ENV = {
-  PATH: process.env.PATH || '',
-  HOME: process.env.HOME || '',
-  FORCE_COLOR: '0',
 } as const;

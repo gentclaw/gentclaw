@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync, renameSync, appendFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, renameSync, appendFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { ALL_DIRS } from './paths.js';
@@ -30,6 +30,19 @@ function appendJsonl(filePath: string, record: unknown): void {
 /** Append a timestamped JSON record as a JSONL line (mode 0o600). Best-effort, never throws. */
 export function appendJsonlWithTs(filePath: string, record: Record<string, unknown>): void {
   appendJsonl(filePath, { ts: Date.now(), ...record });
+}
+
+/** Read + parse JSON file with a type guard. Returns null on ENOENT or guard failure. Throws on other errors. */
+export function readJsonSafe<T>(filePath: string, guard: (v: unknown) => v is T): T | null {
+  let raw: string;
+  try {
+    raw = readFileSync(filePath, 'utf-8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw err;
+  }
+  const parsed: unknown = JSON.parse(raw);
+  return guard(parsed) ? parsed : null;
 }
 
 /** Ensure all required directories exist. */

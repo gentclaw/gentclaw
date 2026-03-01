@@ -3,7 +3,8 @@ import { mkdirSync, rmSync, readFileSync, readdirSync, existsSync } from 'node:f
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
-import { atomicWriteText, atomicWriteJson, appendJsonlWithTs } from '../../src/lib/fs-utils.js';
+import { atomicWriteText, atomicWriteJson, appendJsonlWithTs, readJsonSafe } from '../../src/lib/fs-utils.js';
+import { writeFileSync } from 'node:fs';
 
 const testDir = join(tmpdir(), `gentclaw-fs-test-${randomBytes(4).toString('hex')}`);
 
@@ -60,6 +61,34 @@ describe('fs-utils', () => {
       atomicWriteJson(p, { a: 1 });
       const raw = readFileSync(p, 'utf-8');
       expect(raw).toBe('{\n  "a": 1\n}\n');
+    });
+  });
+
+  describe('readJsonSafe', () => {
+    type TestData = { name: string; count: number };
+    const guard = (v: unknown): v is TestData =>
+      v != null && typeof v === 'object' && 'name' in v && 'count' in v;
+
+    it('returns parsed data when file is valid and guard passes', () => {
+      const p = join(testDir, 'valid.json');
+      writeFileSync(p, JSON.stringify({ name: 'a', count: 1 }));
+      expect(readJsonSafe(p, guard)).toEqual({ name: 'a', count: 1 });
+    });
+
+    it('returns null on ENOENT', () => {
+      expect(readJsonSafe(join(testDir, 'missing.json'), guard)).toBeNull();
+    });
+
+    it('throws on corrupt JSON', () => {
+      const p = join(testDir, 'bad.json');
+      writeFileSync(p, '{not json');
+      expect(() => readJsonSafe(p, guard)).toThrow();
+    });
+
+    it('returns null when guard rejects', () => {
+      const p = join(testDir, 'wrong-shape.json');
+      writeFileSync(p, JSON.stringify({ other: true }));
+      expect(readJsonSafe(p, guard)).toBeNull();
     });
   });
 

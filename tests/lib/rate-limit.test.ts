@@ -42,22 +42,42 @@ describe('checkRateLimit', () => {
     expect(result.action).toBe('allow');
   });
 
-  it('evicts stale senders when map exceeds 100 entries', () => {
+  it('evicts stale senders when map exceeds threshold', () => {
     const cfg = { max: 5, windowSec: 1 };
     const baseTime = 1_000_000;
 
-    // Fill 101 senders at baseTime
+    // Fill 51 senders at baseTime (threshold lowered to 50)
     vi.spyOn(Date, 'now').mockReturnValue(baseTime);
-    for (let i = 0; i < 101; i++) {
+    for (let i = 0; i < 51; i++) {
       checkRateLimit(makeMsg(`stale-${i}`), cfg);
     }
-    expect(getWindowCount()).toBe(101);
+    expect(getWindowCount()).toBe(51);
 
     // Advance past window — next check triggers eviction
     vi.spyOn(Date, 'now').mockReturnValue(baseTime + 2000);
     checkRateLimit(makeMsg('fresh'), cfg);
 
-    // All 101 stale senders evicted, only 'fresh' remains
+    // All 51 stale senders evicted, only 'fresh' remains
+    expect(getWindowCount()).toBe(1);
+    vi.restoreAllMocks();
+  });
+
+  it('evicts stale senders after 5 minute interval even under threshold', () => {
+    const cfg = { max: 5, windowSec: 1 };
+    const baseTime = 1_000_000;
+
+    // Add only 10 senders (well under threshold of 50)
+    vi.spyOn(Date, 'now').mockReturnValue(baseTime);
+    for (let i = 0; i < 10; i++) {
+      checkRateLimit(makeMsg(`user-${i}`), cfg);
+    }
+    expect(getWindowCount()).toBe(10);
+
+    // Advance 6 minutes — time-based eviction should trigger
+    vi.spyOn(Date, 'now').mockReturnValue(baseTime + 6 * 60 * 1000);
+    checkRateLimit(makeMsg('late-arrival'), cfg);
+
+    // All 10 stale senders evicted, only 'late-arrival' remains
     expect(getWindowCount()).toBe(1);
     vi.restoreAllMocks();
   });

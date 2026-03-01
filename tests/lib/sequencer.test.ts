@@ -59,6 +59,24 @@ describe('runSequential', () => {
     expect(activeTasks()).toBe(0);
   });
 
+  it('rejects with QueueFullError when too many concurrent queues', async () => {
+    // Block drain so queues stay open
+    let unblock!: () => void;
+    const blocker = new Promise<void>(r => { unblock = r; });
+
+    const tasks: Promise<void>[] = [];
+    for (let i = 0; i < 500; i++) {
+      tasks.push(runSequential(`key-${i}`, () => blocker).catch(() => {}));
+    }
+
+    // 501st key should be rejected
+    await expect(runSequential('overflow-key', async () => {})).rejects.toThrow(QueueFullError);
+
+    // Cleanup
+    unblock();
+    await Promise.allSettled(tasks);
+  });
+
   it('rejects with QueueFullError when queue exceeds max length', async () => {
     // Block the drain loop so tasks queue up
     let unblock!: () => void;

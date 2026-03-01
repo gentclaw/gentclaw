@@ -7,6 +7,7 @@ const DEFAULT_CONFIG: Config = { max: 10, windowSec: 60 };
 
 /** Per-sender sliding window. Key = senderId. */
 const windows = new Map<string, Window>();
+let lastEvictAt = 0;
 
 /** Evict stale senders with no recent activity. Runs inline during check. */
 function evictStaleSenders(cutoff: number): void {
@@ -15,6 +16,7 @@ function evictStaleSenders(cutoff: number): void {
       windows.delete(key);
     }
   }
+  lastEvictAt = Date.now();
 }
 
 /** Evict expired timestamps and check if sender is over limit. */
@@ -28,8 +30,11 @@ export function checkRateLimit(
   const cutoff = now - windowSec * 1000;
   const sender = msg.sender;
 
-  // Periodically evict stale senders to prevent unbounded map growth
-  if (windows.size > 100) evictStaleSenders(cutoff);
+  // Evict stale senders: by count threshold or every 5 min
+  const EVICT_INTERVAL_MS = 5 * 60 * 1_000;
+  if (windows.size > 50 || (now - lastEvictAt > EVICT_INTERVAL_MS && windows.size > 0)) {
+    evictStaleSenders(cutoff);
+  }
 
   let win = windows.get(sender);
   if (!win) {
@@ -51,6 +56,7 @@ export function checkRateLimit(
 /** Reset all windows (for testing). */
 export function resetRateLimits(): void {
   windows.clear();
+  lastEvictAt = 0;
 }
 
 /** @internal Test-only — number of tracked senders. */

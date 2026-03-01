@@ -12,12 +12,15 @@ type QueueEntry = {
 /** Max pending tasks per key — rejects with QueueFullError when exceeded */
 const MAX_QUEUE_LENGTH = 50;
 
+/** Max concurrent keys — prevents unbounded memory under abuse */
+const MAX_QUEUES = 500;
+
 const queues = new Map<string, QueueEntry[]>();
 const draining = new Set<string>();
 
 export class QueueFullError extends Error {
-  constructor(key: string) {
-    super(`Queue full for key '${key}' (max ${MAX_QUEUE_LENGTH})`);
+  constructor(message: string) {
+    super(message);
     this.name = 'QueueFullError';
   }
 }
@@ -25,9 +28,16 @@ export class QueueFullError extends Error {
 export function runSequential(key: string, task: () => Promise<void>): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     let queue = queues.get(key);
-    if (!queue) { queue = []; queues.set(key, queue); }
+    if (!queue) {
+      if (queues.size >= MAX_QUEUES) {
+        reject(new QueueFullError(`Too many concurrent queues (max ${MAX_QUEUES})`));
+        return;
+      }
+      queue = [];
+      queues.set(key, queue);
+    }
     if (queue.length >= MAX_QUEUE_LENGTH) {
-      reject(new QueueFullError(key));
+      reject(new QueueFullError(`Queue full for key '${key}' (max ${MAX_QUEUE_LENGTH})`));
       return;
     }
     queue.push({ task, resolve, reject });
