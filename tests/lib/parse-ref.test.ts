@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseRef, parseSafeId } from '../../src/lib/parse-ref.js';
+import { parseRef, parseSafeId, parseSubcommand } from '../../src/lib/parse-ref.js';
 
 describe('parseRef', () => {
   it('strips @ prefix and lowercases', () => {
@@ -30,5 +30,27 @@ describe('parseSafeId', () => {
 
   it('returns empty string for all-invalid chars', () => {
     expect(parseSafeId('@!!!')).toBe('');
+  });
+});
+
+describe('parseSubcommand', () => {
+  it('splits into sub and subArgs', () => {
+    expect(parseSubcommand('add foo bar')).toEqual({ sub: 'add', subArgs: 'foo bar' });
+  });
+
+  it('lowercases the subcommand', () => {
+    expect(parseSubcommand('SHOW details')).toEqual({ sub: 'show', subArgs: 'details' });
+  });
+
+  it('returns empty strings for empty input', () => {
+    expect(parseSubcommand('')).toEqual({ sub: '', subArgs: '' });
+  });
+
+  it('handles subcommand with no args', () => {
+    expect(parseSubcommand('list')).toEqual({ sub: 'list', subArgs: '' });
+  });
+
+  it('trims leading/trailing whitespace', () => {
+    expect(parseSubcommand('  remove  foo  ')).toEqual({ sub: 'remove', subArgs: 'foo' });
   });
 });

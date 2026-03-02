@@ -7,7 +7,7 @@ import { randomBytes } from 'node:crypto';
 const testHome = join(tmpdir(), `gentclaw-cfg-test-${randomBytes(4).toString('hex')}`);
 process.env['GENTCLAW_HOME'] = testHome;
 
-const { getSettings, updateSettings, writeSettings, getAgents, getDefaultAgentId, hasAgents, clearConfigCache } =
+const { getSettings, updateSettings, writeSettings, getAgents, getDefaultAgentId, hasAgents, clearConfigCache, updateAgent, removeAgent, updateTeam, removeTeam } =
   await import('../../src/lib/config.js');
 const { ConfigError } = await import('../../src/lib/errors.js');
 const { ensureDirectories } = await import('../../src/lib/fs-utils.js');
@@ -91,5 +91,42 @@ describe('config', () => {
     writeFileSync(join(testHome, 'settings.json'), '{"agents":["bad"]}', 'utf-8');
     clearConfigCache();
     expect(() => getSettings()).toThrow(ConfigError);
+  });
+
+  it('updateAgent adds or replaces an agent', () => {
+    writeSettings({ agents: { a: { name: 'A', provider: 'claude', model: 'sonnet', cwd: '/tmp' } } });
+    clearConfigCache();
+    updateAgent('b', { name: 'B', provider: 'claude', model: 'opus', cwd: '/tmp' });
+    clearConfigCache();
+    const agents = getAgents();
+    expect(agents['b']!.name).toBe('B');
+    expect(agents['a']!.name).toBe('A');
+  });
+
+  it('removeAgent removes an agent', () => {
+    writeSettings({ agents: { a: { name: 'A', provider: 'claude', model: 'sonnet', cwd: '/tmp' }, b: { name: 'B', provider: 'claude', model: 'opus', cwd: '/tmp' } } });
+    clearConfigCache();
+    removeAgent('a');
+    clearConfigCache();
+    const s = getSettings();
+    expect(s.agents).not.toHaveProperty('a');
+    expect(s.agents).toHaveProperty('b');
+  });
+
+  it('updateTeam adds or replaces a team', () => {
+    writeSettings({ agents: { a: { name: 'A', provider: 'claude', model: 'sonnet', cwd: '/tmp' } } });
+    clearConfigCache();
+    updateTeam('t1', { name: 'Team One', agents: ['a'], leader: 'a' });
+    clearConfigCache();
+    const teams = getSettings().teams;
+    expect(teams?.['t1']?.name).toBe('Team One');
+  });
+
+  it('removeTeam removes a team', () => {
+    writeSettings({ agents: { a: { name: 'A', provider: 'claude', model: 'sonnet', cwd: '/tmp' } }, teams: { t1: { name: 'T1', agents: ['a'], leader: 'a' } } });
+    clearConfigCache();
+    removeTeam('t1');
+    clearConfigCache();
+    expect(getSettings().teams).not.toHaveProperty('t1');
   });
 });

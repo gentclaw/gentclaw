@@ -1,9 +1,9 @@
 /** Agent CRUD command handlers */
 
-import { getAgents, getDefaultAgentId, getSettings, updateSettings } from '../config.js';
+import { getAgents, getDefaultAgentId, getSettings, updateSettings, updateAgent, removeAgent } from '../config.js';
 import { listProviders, getProvider } from '../providers.js';
 import { auditLog } from '../audit.js';
-import { parseRef, parseSafeId, parseForceFlag } from '../parse-ref.js';
+import { parseRef, parseSafeId, parseForceFlag, parseSubcommand } from '../parse-ref.js';
 import { cmdReply } from '../types.js';
 import type { Agent, CmdResult, CmdContext } from '../types.js';
 
@@ -60,11 +60,8 @@ function agentAdd(args: string, ctx: CmdContext): CmdResult {
   const model = rest[0] || providerDef.defaultModel;
   const cwd = process.cwd();
 
-  updateSettings(s => ({
-    ...s,
-    agents: { ...s.agents, [id]: { name, provider: providerId, model, cwd } },
-    defaultAgent: s.defaultAgent || id,
-  }));
+  updateAgent(id, { name, provider: providerId, model, cwd });
+  if (!settings.defaultAgent) updateSettings(s => ({ ...s, defaultAgent: id }));
 
   auditLog({ action: 'cmd:agent-add', sender: ctx.sender, detail: args, status: 'allowed' });
   return cmdReply(`Agent '${id}' created (${providerId}/${model}).`);
@@ -83,15 +80,10 @@ function agentRemove(args: string, ctx: CmdContext): CmdResult {
     return cmdReply(`Remove '${id}' (${agents[id]?.name ?? id})?\nUse \`/agent remove ${id} --force\` to confirm.`);
   }
 
-  const settings = getSettings();
-  const wasDefault = settings.defaultAgent === id;
+  const wasDefault = getSettings().defaultAgent === id;
 
-  updateSettings(s => {
-    const { [id]: _removed, ...remaining } = s.agents ?? {};
-    const updated = { ...s, agents: remaining as Record<string, Agent> };
-    if (wasDefault) delete updated.defaultAgent;
-    return updated;
-  });
+  removeAgent(id);
+  if (wasDefault) updateSettings(s => { const { defaultAgent: _, ...rest } = s; return rest; });
 
   auditLog({ action: 'cmd:agent-remove', sender: ctx.sender, detail: id, status: 'allowed' });
   const extra = wasDefault ? ' (cleared default)' : '';
@@ -120,13 +112,9 @@ function agentProvider(args: string, ctx: CmdContext): CmdResult {
   const modelIdx = parts.indexOf('--model');
   const model = modelIdx !== -1 ? parts[modelIdx + 1] : undefined;
 
-  updateSettings(s => {
-    const current = s.agents?.[id];
-    if (!current) return s;
-    const a = { ...current, provider: providerArg };
-    if (model) a.model = model;
-    return { ...s, agents: { ...s.agents, [id]: a } };
-  });
+  const updated = { ...existing, provider: providerArg };
+  if (model) updated.model = model;
+  updateAgent(id, updated);
 
   auditLog({ action: 'cmd:agent-provider', sender: ctx.sender, detail: args, status: 'allowed' });
   return cmdReply(`${id} → ${providerArg}${model ? ` (${model})` : ''}`);
@@ -138,9 +126,7 @@ export function dispatchAgentCommand(args: string, ctx: CmdContext): CmdResult {
     return cmdReply(formatAgentList());
   }
 
-  const parts = args.trim().split(/\s+/);
-  const sub = (parts[0] ?? '').toLowerCase();
-  const subArgs = parts.slice(1).join(' ');
+  const { sub, subArgs } = parseSubcommand(args);
 
   if (sub === 'add') return agentAdd(subArgs, ctx);
   if (sub === 'remove') return agentRemove(subArgs, ctx);

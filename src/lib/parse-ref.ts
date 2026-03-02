@@ -13,3 +13,11 @@ export function parseForceFlag(args: string): { cleanArgs: string; force: boolea
   const force = /--force\b/.test(args);
   return { cleanArgs: args.replace(/--force\s*/g, '').trim(), force };
 }
+
+/** Split "subcommand rest of args" into parts. */
+export function parseSubcommand(args: string): { sub: string; subArgs: string } {
+  const parts = args.trim().split(/\s+/);
+  const sub = (parts[0] ?? '').toLowerCase();
+  const subArgs = parts.slice(1).join(' ');
+  return { sub, subArgs };
+}

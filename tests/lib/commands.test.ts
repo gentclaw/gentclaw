@@ -13,6 +13,10 @@ vi.mock('../../src/lib/config.js', () => ({
   getSettings: () => mockGetSettings(),
   getTeams: () => mockGetSettings().teams ?? {},
   updateSettings: vi.fn((mutator: (s: Record<string, unknown>) => Record<string, unknown>) => mutator({})),
+  updateAgent: vi.fn(),
+  removeAgent: vi.fn(),
+  updateTeam: vi.fn(),
+  removeTeam: vi.fn(),
 }));
 
 vi.mock('node:child_process', () => ({

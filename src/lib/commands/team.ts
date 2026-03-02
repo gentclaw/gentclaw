@@ -1,11 +1,11 @@
 /** Team CRUD command handlers */
 
-import { getAgents, getSettings, getTeams, updateSettings } from '../config.js';
+import { getAgents, getSettings, getTeams, updateTeam, removeTeam } from '../config.js';
 import { validateTeam } from '../team.js';
 import { auditLog } from '../audit.js';
-import { parseRef, parseSafeId, parseForceFlag } from '../parse-ref.js';
+import { parseRef, parseSafeId, parseForceFlag, parseSubcommand } from '../parse-ref.js';
 import { cmdReply } from '../types.js';
-import type { Team, CmdResult, CmdContext } from '../types.js';
+import type { CmdResult, CmdContext } from '../types.js';
 
 /** Parse "<team> <agent>" args with @-prefix stripping and lowercasing */
 function parseTeamAgentArgs(args: string): { teamId: string; agentId: string } | null {
@@ -66,7 +66,7 @@ export function teamAdd(args: string, ctx: CmdContext): CmdResult {
   const err = validateTeam(team, agents);
   if (err) return cmdReply(err);
 
-  updateSettings(s => ({ ...s, teams: { ...s.teams, [teamId]: team } }));
+  updateTeam(teamId, team);
   auditLog({ action: 'cmd:team-add', sender: ctx.sender, detail: args, status: 'allowed' });
   return cmdReply(`Team '${teamId}' created (${unique.length} agents, leader: @${leader}).`);
 }
@@ -84,11 +84,7 @@ export function teamRemove(args: string, ctx: CmdContext): CmdResult {
     return cmdReply(`Remove team '${teamId}' (${teams[teamId]?.name ?? teamId})?\nUse \`/team remove ${teamId} --force\` to confirm.`);
   }
 
-  updateSettings(s => {
-    const { [teamId]: _removed, ...remaining } = s.teams ?? {};
-    return { ...s, teams: remaining as Record<string, Team> };
-  });
-
+  removeTeam(teamId);
   auditLog({ action: 'cmd:team-remove', sender: ctx.sender, detail: teamId, status: 'allowed' });
   return cmdReply(`Team '${teamId}' removed.`);
 }
@@ -107,13 +103,7 @@ export function teamAddAgent(args: string, ctx: CmdContext): CmdResult {
   if (!agents[agentId]) return cmdReply(`Agent '${agentId}' not found.`);
   if (team.agents.includes(agentId)) return cmdReply(`Agent '${agentId}' is already in team '${teamId}'.`);
 
-  updateSettings(s => {
-    const existing = s.teams?.[teamId];
-    if (!existing) return s;
-    const updated = { ...existing, agents: [...existing.agents, agentId] };
-    return { ...s, teams: { ...s.teams, [teamId]: updated } };
-  });
-
+  updateTeam(teamId, { ...team, agents: [...team.agents, agentId] });
   auditLog({ action: 'cmd:team-addagent', sender: ctx.sender, detail: args, status: 'allowed' });
   return cmdReply(`Added @${agentId} to team '${teamId}'.`);
 }
@@ -130,11 +120,7 @@ export function teamSetLeader(args: string, ctx: CmdContext): CmdResult {
   if (!team.agents.includes(agentId)) return cmdReply(`Agent '${agentId}' is not in team '${teamId}'.`);
   if (team.leader === agentId) return cmdReply(`Agent '${agentId}' is already leader of '${teamId}'.`);
 
-  updateSettings(s => ({
-    ...s,
-    teams: { ...s.teams, [teamId]: { ...team, leader: agentId } },
-  }));
-
+  updateTeam(teamId, { ...team, leader: agentId });
   auditLog({ action: 'cmd:team-setleader', sender: ctx.sender, detail: args, status: 'allowed' });
   return cmdReply(`Team '${teamId}' leader changed to @${agentId}.`);
 }
@@ -152,22 +138,14 @@ export function teamRemoveAgent(args: string, ctx: CmdContext): CmdResult {
   if (team.leader === agentId) return cmdReply('Cannot remove leader. Use `/team setleader` first or remove the team.');
   if (team.agents.length <= 1) return cmdReply('Cannot remove last agent from team. Remove the team instead.');
 
-  updateSettings(s => {
-    const existing = s.teams?.[teamId];
-    if (!existing) return s;
-    const updated = { ...existing, agents: existing.agents.filter(a => a !== agentId) };
-    return { ...s, teams: { ...s.teams, [teamId]: updated } };
-  });
-
+  updateTeam(teamId, { ...team, agents: team.agents.filter(a => a !== agentId) });
   auditLog({ action: 'cmd:team-removeagent', sender: ctx.sender, detail: args, status: 'allowed' });
   return cmdReply(`Removed @${agentId} from team '${teamId}'.`);
 }
 
 /** Dispatch /team subcommands */
 export function dispatchTeamCommand(args: string, ctx: CmdContext): CmdResult {
-  const parts = args.trim().split(/\s+/);
-  const sub = parts[0]?.toLowerCase();
-  const subArgs = parts.slice(1).join(' ');
+  const { sub, subArgs } = parseSubcommand(args);
 
   if (sub === 'show') return teamShow(subArgs);
   if (sub === 'add') return teamAdd(subArgs, ctx);

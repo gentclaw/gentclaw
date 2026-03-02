@@ -2,7 +2,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync, spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
-import { getAgents, getDefaultAgentId, getSettings, updateSettings } from './config.js';
+import { getAgents, getDefaultAgentId, getSettings, updateSettings, updateAgent } from './config.js';
 import { deleteSession, stopFlagPath } from './sessions.js';
 import { listProviders } from './providers.js';
 import { getStatusSnapshot } from './tracker.js';
@@ -135,11 +135,8 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
       return cmdReply(`Current model: ${agents[defaultId]?.model ?? 'unknown'}`);
     }
     const target = args.trim();
-    updateSettings(s => {
-      const current = s.agents?.[defaultId];
-      if (!current) return s;
-      return { ...s, agents: { ...s.agents, [defaultId]: { ...current, model: target } } };
-    });
+    const current = getAgents()[defaultId];
+    if (current) updateAgent(defaultId, { ...current, model: target });
     return cmdReply(`Model set to: ${target}`);
   },
 

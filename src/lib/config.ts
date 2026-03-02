@@ -56,11 +56,13 @@ export function hasAgents(): boolean {
   return !!s.agents && Object.keys(s.agents).length > 0;
 }
 
+const NO_AGENTS_MSG = 'No agents configured. Run the setup wizard or add agents to settings.json.';
+
 /** Get configured agents. Throws ConfigError if none are configured. */
 export function getAgents(): Record<string, Agent> {
   const agents = getSettings().agents;
   if (!agents || Object.keys(agents).length === 0) {
-    throw new ConfigError('No agents configured. Run the setup wizard or add agents to settings.json.');
+    throw new ConfigError(NO_AGENTS_MSG);
   }
   return agents;
 }
@@ -75,12 +77,38 @@ export function getDefaultAgentId(): string {
   const s = getSettings();
   const agents = s.agents;
   if (!agents || Object.keys(agents).length === 0) {
-    throw new ConfigError('No agents configured. Run the setup wizard or add agents to settings.json.');
+    throw new ConfigError(NO_AGENTS_MSG);
   }
   if (s.defaultAgent && agents[s.defaultAgent]) return s.defaultAgent;
   const first = Object.keys(agents)[0];
   if (!first) throw new ConfigError('No agents configured (unreachable).');
   return first;
+}
+
+/** Mutate a single agent in settings. */
+export function updateAgent(id: string, agent: Agent): void {
+  updateSettings(s => ({ ...s, agents: { ...s.agents, [id]: agent } }));
+}
+
+/** Remove an agent from settings. Returns the updated settings. */
+export function removeAgent(id: string): Settings {
+  return updateSettings(s => {
+    const { [id]: _removed, ...remaining } = s.agents ?? {};
+    return { ...s, agents: remaining as Record<string, Agent> };
+  });
+}
+
+/** Set or replace a team in settings. */
+export function updateTeam(id: string, team: Team): void {
+  updateSettings(s => ({ ...s, teams: { ...s.teams, [id]: team } }));
+}
+
+/** Remove a team from settings. Returns the updated settings. */
+export function removeTeam(id: string): Settings {
+  return updateSettings(s => {
+    const { [id]: _removed, ...remaining } = s.teams ?? {};
+    return { ...s, teams: remaining as Record<string, Team> };
+  });
 }
 
 /** Invalidate the cache (for testing or after external file changes). */
