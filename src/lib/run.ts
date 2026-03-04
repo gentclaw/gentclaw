@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { getProvider, buildProviderArgs, parseProviderOutput, extractUsage, getNestedField } from './providers.js';
 import { getAgents } from './config.js';
+import { tryParseJson } from './text.js';
 import { getCliSessionId, setCliSessionId, stopFlagPath } from './sessions.js';
 import { RunError } from './errors.js';
 import { MAX_RUN_TIMEOUT_MS, SPAWN_ENV } from './constants.js';
@@ -67,14 +68,13 @@ export async function runAgent(opts: RunOpts): Promise<RunAgentResult> {
   const captureSessionId = (raw: string) => {
     const field = provider.session?.captureIdField;
     if (!field) return;
-    try {
-      const obj: unknown = JSON.parse(raw);
-      const id = getNestedField(obj, field);
-      if (typeof id === 'string' && id) {
-        setCliSessionId(opts.sessionKey, id);
-        L.info('captured session id from output', { field, id });
-      }
-    } catch { /* not JSON — skip capture */ }
+    const obj = tryParseJson(raw);
+    if (obj === undefined) return;
+    const id = getNestedField(obj, field);
+    if (typeof id === 'string' && id) {
+      setCliSessionId(opts.sessionKey, id);
+      L.info('captured session id from output', { field, id });
+    }
   };
 
   /** Execute command via spawn or tmux based on provider config. */

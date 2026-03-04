@@ -1,6 +1,7 @@
 import type { Provider, TokenUsage } from './types.js';
 import { ProviderError } from './errors.js';
 import { getSettings } from './config.js';
+import { tryParseJson } from './text.js';
 
 // Built-in providers
 const CLAUDE: Provider = {
@@ -115,11 +116,11 @@ export function getNestedField(obj: unknown, path: string): unknown {
 /** Parse raw CLI output based on provider output format. */
 export function parseProviderOutput(def: Provider, raw: string): string {
   if (def.output === 'json' && def.jsonExtract) {
-    try {
-      const obj: unknown = JSON.parse(raw);
+    const obj = tryParseJson(raw);
+    if (obj !== undefined) {
       const val = getNestedField(obj, def.jsonExtract);
       if (typeof val === 'string') return val.trim();
-    } catch { /* fall through to raw */ }
+    }
     return raw.trim();
   }
 
@@ -129,14 +130,11 @@ export function parseProviderOutput(def: Provider, raw: string): string {
   const parts: string[] = [];
 
   for (const line of lines) {
-    try {
-      const obj = JSON.parse(line) as Record<string, unknown>;
-      if (obj['type'] === def.jsonlExtract.type) {
-        const content = obj[def.jsonlExtract.textField];
-        if (typeof content === 'string') parts.push(content);
-      }
-    } catch {
-      // Not JSON — include as raw text
+    const obj = tryParseJson<Record<string, unknown>>(line);
+    if (obj && obj['type'] === def.jsonlExtract.type) {
+      const content = obj[def.jsonlExtract.textField];
+      if (typeof content === 'string') parts.push(content);
+    } else if (!obj) {
       parts.push(line);
     }
   }
@@ -155,15 +153,13 @@ export function extractUsage(def: Provider, raw: string): TokenUsage | undefined
 function extractJsonlUsage(raw: string): TokenUsage | undefined {
   const lines = raw.split('\n').filter(Boolean);
   for (const line of lines) {
-    try {
-      const obj = JSON.parse(line) as Record<string, unknown>;
-      if (obj['type'] === 'result' && obj['usage']) {
-        const u = obj['usage'] as Record<string, unknown>;
-        const input = typeof u['input_tokens'] === 'number' ? u['input_tokens'] : undefined;
-        const output = typeof u['output_tokens'] === 'number' ? u['output_tokens'] : undefined;
-        if (input !== undefined && output !== undefined) return { input, output };
-      }
-    } catch { /* skip non-JSON lines */ }
+    const obj = tryParseJson<Record<string, unknown>>(line);
+    if (obj?.['type'] === 'result' && obj['usage']) {
+      const u = obj['usage'] as Record<string, unknown>;
+      const input = typeof u['input_tokens'] === 'number' ? u['input_tokens'] : undefined;
+      const output = typeof u['output_tokens'] === 'number' ? u['output_tokens'] : undefined;
+      if (input !== undefined && output !== undefined) return { input, output };
+    }
   }
   return undefined;
 }
@@ -178,13 +174,12 @@ function pickNumericField(obj: Record<string, unknown>, ...names: string[]): num
 
 /** Gemini JSON: look for usageMetadata.promptTokenCount / candidatesTokenCount */
 function extractJsonUsage(raw: string): TokenUsage | undefined {
-  try {
-    const obj = JSON.parse(raw) as Record<string, unknown>;
-    const meta = (obj['usageMetadata'] ?? obj['usage_metadata']) as Record<string, unknown> | undefined;
-    if (!meta) return undefined;
-    const input = pickNumericField(meta, 'promptTokenCount', 'prompt_token_count');
-    const output = pickNumericField(meta, 'candidatesTokenCount', 'candidates_token_count');
-    if (input !== undefined && output !== undefined) return { input, output };
-  } catch { /* not JSON */ }
+  const obj = tryParseJson<Record<string, unknown>>(raw);
+  if (!obj) return undefined;
+  const meta = (obj['usageMetadata'] ?? obj['usage_metadata']) as Record<string, unknown> | undefined;
+  if (!meta) return undefined;
+  const input = pickNumericField(meta, 'promptTokenCount', 'prompt_token_count');
+  const output = pickNumericField(meta, 'candidatesTokenCount', 'candidates_token_count');
+  if (input !== undefined && output !== undefined) return { input, output };
   return undefined;
 }

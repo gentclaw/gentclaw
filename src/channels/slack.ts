@@ -13,6 +13,11 @@ import type { InboundMsg } from '../lib/types.js';
 
 const MAX_FILE_SIZE = 100_000; // 100KB — skip large files
 
+/** Resolve Slack token with settings → env fallback. */
+function getSlackToken(key: 'botToken' | 'appToken', envKey: string): string | undefined {
+  return getSettings().channels?.slack?.[key] ?? process.env[envKey];
+}
+
 const L = log('slack');
 /** Status reaction names — mirrors claw's 4-phase lifecycle: received → working → done/error */
 const REACT_RECEIVED = 'eyes';
@@ -140,7 +145,7 @@ async function handleEvent(
 
   // Download file attachments and append to message
   if (files && files.length > 0) {
-    const botToken = getSettings().channels?.slack?.botToken ?? process.env['SLACK_BOT_TOKEN'];
+    const botToken = getSlackToken('botToken', 'SLACK_BOT_TOKEN');
     if (!botToken) {
       L.warn('file download skipped — no botToken available');
     } else {
@@ -204,8 +209,8 @@ async function handleEvent(
 /** Start the Slack listener (Socket Mode). */
 export async function startSlack(): Promise<void> {
   const settings = getSettings();
-  const botToken = settings.channels?.slack?.botToken ?? process.env['SLACK_BOT_TOKEN'];
-  const appToken = settings.channels?.slack?.appToken ?? process.env['SLACK_APP_TOKEN'];
+  const botToken = getSlackToken('botToken', 'SLACK_BOT_TOKEN');
+  const appToken = getSlackToken('appToken', 'SLACK_APP_TOKEN');
 
   if (!botToken || !appToken) {
     throw new ConfigError('Missing SLACK_BOT_TOKEN or SLACK_APP_TOKEN');

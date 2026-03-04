@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { getSettings } from './config.js';
 import { auditLog } from './audit.js';
 import { log } from './log.js';
+import { tryParseJson } from './text.js';
 import { checkRateLimit } from './builtins/rate-limit.js';
 import { checkContentGuard } from './builtins/content-guard.js';
 import { secretsScan } from './builtins/secrets-scan.js';
@@ -36,22 +37,17 @@ function runSubprocess(hook: HookDef, msg: InboundMsg): Promise<HookAction> {
         resolve({ action: 'allow' });
         return;
       }
-      try {
-        const parsed = JSON.parse(stdout.trim()) as Record<string, unknown>;
-        if (!parsed || typeof parsed.action !== 'string' || !VALID_ACTIONS.has(parsed.action)) {
-          L.warn('hook returned invalid action, allowing', { hook: hook.name });
-          resolve({ action: 'allow' });
-          return;
-        }
-        if (parsed.action === 'block') {
-          resolve({ action: 'block', reason: typeof parsed.reason === 'string' ? parsed.reason : '' });
-        } else if (parsed.action === 'transform' && typeof parsed.message === 'string') {
-          resolve({ action: 'transform', message: parsed.message });
-        } else {
-          resolve({ action: 'allow' });
-        }
-      } catch {
-        L.warn('hook returned invalid JSON, allowing', { hook: hook.name });
+      const parsed = tryParseJson<Record<string, unknown>>(stdout.trim());
+      if (!parsed || typeof parsed.action !== 'string' || !VALID_ACTIONS.has(parsed.action)) {
+        L.warn(parsed ? 'hook returned invalid action, allowing' : 'hook returned invalid JSON, allowing', { hook: hook.name });
+        resolve({ action: 'allow' });
+        return;
+      }
+      if (parsed.action === 'block') {
+        resolve({ action: 'block', reason: typeof parsed.reason === 'string' ? parsed.reason : '' });
+      } else if (parsed.action === 'transform' && typeof parsed.message === 'string') {
+        resolve({ action: 'transform', message: parsed.message });
+      } else {
         resolve({ action: 'allow' });
       }
     });

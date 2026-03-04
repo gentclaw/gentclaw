@@ -1,5 +1,15 @@
 import { MAX_MSG_LENGTH } from './constants.js';
 
+/** Split string on whitespace, dropping empties. */
+export function splitArgs(s: string): string[] {
+  return s.split(/\s+/).filter(Boolean);
+}
+
+/** Try to parse JSON, returning undefined on failure. */
+export function tryParseJson<T = unknown>(s: string): T | undefined {
+  try { return JSON.parse(s) as T; } catch { return undefined; }
+}
+
 /**
  * Split text into chunks of maxLen characters.
  * Tries to split at newlines first, then at spaces.

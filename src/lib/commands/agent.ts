@@ -5,6 +5,7 @@ import { listProviders, getProvider } from '../providers.js';
 import { auditLog } from '../audit.js';
 import { parseRef, parseSafeId, parseForceFlag, parseSubcommand } from '../parse-ref.js';
 import { cmdReply } from '../types.js';
+import { splitArgs } from '../text.js';
 import type { Agent, CmdResult, CmdContext } from '../types.js';
 
 export function formatAgentList(): string {
@@ -38,7 +39,7 @@ function agentShow(args: string): CmdResult {
 
 /** /agent add <id> <name> <provider> [model] */
 function agentAdd(args: string, ctx: CmdContext): CmdResult {
-  const parts = args.split(/\s+/);
+  const parts = splitArgs(args);
   if (parts.length < 3) {
     return cmdReply('Usage: `/agent add <id> <name> <provider> [model]`');
   }
@@ -92,7 +93,7 @@ function agentRemove(args: string, ctx: CmdContext): CmdResult {
 
 /** /agent provider <id> [provider] [--model M] */
 function agentProvider(args: string, ctx: CmdContext): CmdResult {
-  const parts = args.split(/\s+/);
+  const parts = splitArgs(args);
   const id = parseRef(parts[0] || '');
   if (!id) return cmdReply('Usage: `/agent provider <id> [provider] [--model M]`');
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitMessage, stripAnsi, elapsedSec, formatDurationSec } from '../../src/lib/text.js';
+import { splitMessage, stripAnsi, elapsedSec, formatDurationSec, splitArgs, tryParseJson } from '../../src/lib/text.js';
 
 describe('splitMessage', () => {
   it('returns single chunk for short messages', () => {
@@ -70,5 +70,44 @@ describe('stripAnsi', () => {
     // Cursor up (\x1b[A), erase line (\x1b[2K), cursor position (\x1b[1;1H)
     expect(stripAnsi('\x1b[2Khello\x1b[A')).toBe('hello');
     expect(stripAnsi('\x1b[1;1Hworld')).toBe('world');
+  });
+});
+
+describe('splitArgs', () => {
+  it('splits on whitespace and drops empties', () => {
+    expect(splitArgs('  foo   bar  baz ')).toEqual(['foo', 'bar', 'baz']);
+  });
+
+  it('returns empty array for empty/whitespace input', () => {
+    expect(splitArgs('')).toEqual([]);
+    expect(splitArgs('   ')).toEqual([]);
+  });
+
+  it('handles single arg', () => {
+    expect(splitArgs('hello')).toEqual(['hello']);
+  });
+
+  it('handles tabs and mixed whitespace', () => {
+    expect(splitArgs("a\tb\n c")).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('tryParseJson', () => {
+  it('parses valid JSON', () => {
+    expect(tryParseJson('{"a":1}')).toEqual({ a: 1 });
+    expect(tryParseJson('"hello"')).toBe('hello');
+    expect(tryParseJson('42')).toBe(42);
+    expect(tryParseJson('[1,2]')).toEqual([1, 2]);
+  });
+
+  it('returns undefined for invalid JSON', () => {
+    expect(tryParseJson('not json')).toBeUndefined();
+    expect(tryParseJson('')).toBeUndefined();
+    expect(tryParseJson('{broken')).toBeUndefined();
+  });
+
+  it('supports generic type parameter', () => {
+    const result = tryParseJson<{ action: string }>('{"action":"allow"}');
+    expect(result?.action).toBe('allow');
   });
 });

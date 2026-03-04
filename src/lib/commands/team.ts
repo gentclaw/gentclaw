@@ -5,11 +5,12 @@ import { validateTeam } from '../team.js';
 import { auditLog } from '../audit.js';
 import { parseRef, parseSafeId, parseForceFlag, parseSubcommand } from '../parse-ref.js';
 import { cmdReply } from '../types.js';
+import { splitArgs } from '../text.js';
 import type { CmdResult, CmdContext } from '../types.js';
 
 /** Parse "<team> <agent>" args with @-prefix stripping and lowercasing */
 function parseTeamAgentArgs(args: string): { teamId: string; agentId: string } | null {
-  const parts = args.split(/\s+/).filter(Boolean);
+  const parts = splitArgs(args);
   if (parts.length < 2) return null;
   return { teamId: parseRef(parts[0] ?? ''), agentId: parseRef(parts[1] ?? '') };
 }
@@ -45,7 +46,7 @@ export function teamShow(args: string): CmdResult {
 
 /** /team add <id> <display-name> <leader> [agent2...] — name must be single word (no spaces) */
 export function teamAdd(args: string, ctx: CmdContext): CmdResult {
-  const parts = args.split(/\s+/).filter(Boolean);
+  const parts = splitArgs(args);
   if (parts.length < 3) {
     return cmdReply('Usage: `/team add <id> <display-name> <leader> [agent2...]` (name: no spaces)');
   }
