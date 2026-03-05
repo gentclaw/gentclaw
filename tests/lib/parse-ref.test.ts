@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseRef, parseSafeId, parseSubcommand } from '../../src/lib/parse-ref.js';
+import { parseRef, parseSafeId, parseSubcommand } from '../../src/lib/text.js';
 
 describe('parseRef', () => {
   it('strips @ prefix and lowercases', () => {

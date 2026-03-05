@@ -51,6 +51,10 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
   const agentCfgForLog = agents[route.agentId];
   const startMs = Date.now();
 
+  const logBase = agentCfgForLog
+    ? { agentId: route.agentId, provider: agentCfgForLog.provider, model: agentCfgForLog.model, channel: msg.channel, sender: msg.sender }
+    : null;
+
   trackStart(route.agentId, sk, msg.message);
   let success = true;
   try {
@@ -61,13 +65,7 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
       timeout,
     });
 
-    if (agentCfgForLog) {
-      logInvocation({
-        agentId: route.agentId, provider: agentCfgForLog.provider, model: agentCfgForLog.model,
-        durationMs: Date.now() - startMs, success: true,
-        tokens: result.tokens, channel: msg.channel, sender: msg.sender,
-      });
-    }
+    if (logBase) logInvocation({ ...logBase, durationMs: Date.now() - startMs, success: true, tokens: result.tokens });
 
     // Extract and persist memory tags from agent response
     const responseText = extractMemoryFromResponse(route.agentId, result.text);
@@ -80,14 +78,7 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
     return post.action === 'block' ? (post.blockReason ?? 'Response blocked.') : post.message;
   } catch (err) {
     success = false;
-    if (agentCfgForLog) {
-      logInvocation({
-        agentId: route.agentId, provider: agentCfgForLog.provider, model: agentCfgForLog.model,
-        durationMs: Date.now() - startMs, success: false,
-        errorType: err instanceof Error ? err.constructor.name : 'Unknown',
-        channel: msg.channel, sender: msg.sender,
-      });
-    }
+    if (logBase) logInvocation({ ...logBase, durationMs: Date.now() - startMs, success: false, errorType: err instanceof Error ? err.constructor.name : 'Unknown' });
     throw err;
   } finally {
     trackFinish(sk, success);

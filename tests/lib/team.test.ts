@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateTeam } from '../../src/lib/team.js';
+import { validateTeam } from '../../src/lib/commands/team.js';
 import type { Agent, Team } from '../../src/lib/types.js';
 
 const agents: Record<string, Agent> = {

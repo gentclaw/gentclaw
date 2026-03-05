@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { PATHS } from './lib/paths.js';
 import { ensureDirectories } from './lib/fs-utils.js';
 import { writeSettings, updateSettings, getSettings } from './lib/config.js';
-import { parseSafeId } from './lib/parse-ref.js';
+import { parseSafeId } from './lib/text.js';
 import type { Settings, Agent } from './lib/types.js';
 
 // ANSI colors

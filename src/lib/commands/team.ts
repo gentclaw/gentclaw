@@ -1,12 +1,22 @@
 /** Team CRUD command handlers */
 
 import { getAgents, getSettings, getTeams, updateTeam, removeTeam } from '../config.js';
-import { validateTeam } from '../team.js';
 import { auditLog } from '../audit.js';
-import { parseRef, parseSafeId, parseForceFlag, parseSubcommand } from '../parse-ref.js';
 import { cmdReply } from '../types.js';
-import { splitArgs } from '../text.js';
-import type { CmdResult, CmdContext, Team } from '../types.js';
+import { splitArgs, parseRef, parseSafeId, parseForceFlag, parseSubcommand } from '../text.js';
+import type { CmdResult, CmdContext, Agent, Team } from '../types.js';
+
+/** Validate team config — returns error string or null if valid */
+export function validateTeam(team: Team, agents: Record<string, Agent>): string | null {
+  if (!team.agents.length) return 'Team must have at least one agent.';
+  for (const id of team.agents) {
+    if (!agents[id]) return `Agent '${id}' not found.`;
+  }
+  if (!team.agents.includes(team.leader)) {
+    return `Leader '${team.leader}' is not in the team.`;
+  }
+  return null;
+}
 
 /** Parse "<team> <agent>" args with @-prefix stripping and lowercasing */
 function parseTeamAgentArgs(args: string): { teamId: string; agentId: string } | null {
