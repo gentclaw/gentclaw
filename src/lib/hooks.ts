@@ -25,6 +25,16 @@ const BUILTINS: Record<string, BuiltinFn> = {
   'secrets-scan': secretsScan,
 };
 
+/** Parse raw JSON into a typed HookAction. Returns 'allow' for invalid/unrecognizable input. */
+export function parseHookAction(raw: unknown): HookAction {
+  if (raw == null || typeof raw !== 'object') return { action: 'allow' };
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.action !== 'string' || !VALID_ACTIONS.has(obj.action)) return { action: 'allow' };
+  if (obj.action === 'block') return { action: 'block', reason: typeof obj.reason === 'string' ? obj.reason : '' };
+  if (obj.action === 'transform' && typeof obj.message === 'string') return { action: 'transform', message: obj.message };
+  return { action: 'allow' };
+}
+
 /** Run a single subprocess hook. Receives JSON on stdin, parses JSON from stdout. */
 function runSubprocess(hook: HookDef, msg: InboundMsg): Promise<HookAction> {
   const timeout = hook.timeout ?? DEFAULT_TIMEOUT;
@@ -37,19 +47,13 @@ function runSubprocess(hook: HookDef, msg: InboundMsg): Promise<HookAction> {
         resolve({ action: 'allow' });
         return;
       }
-      const parsed = tryParseJson(stdout.trim()) as Record<string, unknown> | undefined;
-      if (!parsed || typeof parsed.action !== 'string' || !VALID_ACTIONS.has(parsed.action)) {
-        L.warn(parsed ? 'hook returned invalid action, allowing' : 'hook returned invalid JSON, allowing', { hook: hook.name });
+      const parsed = tryParseJson(stdout.trim());
+      if (!parsed) {
+        L.warn('hook returned invalid JSON, allowing', { hook: hook.name });
         resolve({ action: 'allow' });
         return;
       }
-      if (parsed.action === 'block') {
-        resolve({ action: 'block', reason: typeof parsed.reason === 'string' ? parsed.reason : '' });
-      } else if (parsed.action === 'transform' && typeof parsed.message === 'string') {
-        resolve({ action: 'transform', message: parsed.message });
-      } else {
-        resolve({ action: 'allow' });
-      }
+      resolve(parseHookAction(parsed));
     });
 
     child.stdin?.write(JSON.stringify({ message: msg.message, sender: msg.sender, timestamp: msg.timestamp }));

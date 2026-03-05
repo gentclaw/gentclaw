@@ -10,6 +10,12 @@ export function tryParseJson(s: string): unknown {
   try { return JSON.parse(s) as unknown; } catch { return undefined; }
 }
 
+/** Try to parse JSON as a non-null object. Returns undefined for non-object values (arrays, primitives). */
+export function tryParseJsonObj(s: string): Record<string, unknown> | undefined {
+  const v = tryParseJson(s);
+  return (v !== null && typeof v === 'object' && !Array.isArray(v)) ? v as Record<string, unknown> : undefined;
+}
+
 /**
  * Split text into chunks of maxLen characters.
  * Tries to split at newlines first, then at spaces.
@@ -56,7 +62,10 @@ export function formatDurationSec(ms: number): string {
   return `${Math.round(ms / 1000)}s`;
 }
 
-/** Strip ANSI escape codes (CSI sequences: colors, cursor movement, erase, etc.) */
+/** CSI sequence pattern — colors, cursor movement, erase, etc. Module-level to avoid re-creation per call. */
+const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]/g;
+
+/** Strip ANSI escape codes */
 export function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
+  return text.replace(ANSI_RE, '');
 }

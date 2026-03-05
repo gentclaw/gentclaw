@@ -17,7 +17,9 @@ export type RouteResult = {
   teamId?: string; // set when routed via team mention — value is the matched team ID
 };
 
-/** Parse leading @mention directive via character-level scan. */
+/** Parse leading @mention directive via character-level scan.
+ * Captures a single contiguous non-whitespace token after '@' — multi-word display names
+ * must be referenced by their single-word agent/team ID. */
 function parseDirective(text: string): Directive {
   const trimmed = text.trimStart();
   if (!trimmed.startsWith('@')) return { kind: 'plain', body: text };

@@ -12,11 +12,13 @@ export const ENTRY_MAX_LINES = 20;
 /** Max bytes per memory entry — prevents DOS via tag injection */
 export const ENTRY_MAX_BYTES = 4096;
 
+/** Matches timestamp comment boundaries (e.g. `<!-- 2026-03-05T... -->`) for entry splitting */
 const ENTRY_SEPARATOR_RE = /(?=^<!-- \d{4}-)/m;
 
 // ─── Entry-based trimming ────────────────────────────────────────
 
-/** Split content into timestamped entries, drop oldest until under MEMORY_MAX_LINES */
+/** FIFO rotation: split content on timestamp boundaries, drop oldest entries until under MEMORY_MAX_LINES.
+ * Preserves most recent context while bounding total memory budget. */
 function trimEntries(content: string): string {
   const entries = content.split(ENTRY_SEPARATOR_RE).filter(Boolean);
   let totalLines = entries.reduce((n, e) => n + e.split('\n').length, 0);

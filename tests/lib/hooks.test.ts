@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runHooks } from '../../src/lib/hooks.js';
+import { runHooks, parseHookAction } from '../../src/lib/hooks.js';
 import type { InboundMsg, Settings } from '../../src/lib/types.js';
 import { execFile } from 'node:child_process';
 
@@ -140,5 +140,45 @@ describe('runHooks', () => {
 
     const result = await runHooks('preMessage', makeMsg());
     expect(result.action).toBe('allow');
+  });
+});
+
+describe('parseHookAction', () => {
+  it('parses allow action', () => {
+    expect(parseHookAction({ action: 'allow' })).toEqual({ action: 'allow' });
+  });
+
+  it('parses block action with reason', () => {
+    expect(parseHookAction({ action: 'block', reason: 'spam' })).toEqual({ action: 'block', reason: 'spam' });
+  });
+
+  it('parses block action without reason (defaults to empty)', () => {
+    expect(parseHookAction({ action: 'block' })).toEqual({ action: 'block', reason: '' });
+  });
+
+  it('parses transform action with message', () => {
+    expect(parseHookAction({ action: 'transform', message: 'new msg' })).toEqual({ action: 'transform', message: 'new msg' });
+  });
+
+  it('falls back to allow for transform without message', () => {
+    expect(parseHookAction({ action: 'transform' })).toEqual({ action: 'allow' });
+  });
+
+  it('falls back to allow for invalid action', () => {
+    expect(parseHookAction({ action: 'explode' })).toEqual({ action: 'allow' });
+  });
+
+  it('falls back to allow for null/undefined', () => {
+    expect(parseHookAction(null)).toEqual({ action: 'allow' });
+    expect(parseHookAction(undefined)).toEqual({ action: 'allow' });
+  });
+
+  it('falls back to allow for non-object', () => {
+    expect(parseHookAction('string')).toEqual({ action: 'allow' });
+    expect(parseHookAction(42)).toEqual({ action: 'allow' });
+  });
+
+  it('falls back to allow for missing action field', () => {
+    expect(parseHookAction({ foo: 'bar' })).toEqual({ action: 'allow' });
   });
 });

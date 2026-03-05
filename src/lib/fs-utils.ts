@@ -2,6 +2,9 @@ import { readFileSync, writeFileSync, mkdirSync, renameSync, appendFileSync, exi
 import { join, dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { ALL_DIRS } from './paths.js';
+import { log } from './log.js';
+
+const L = log('fs-utils');
 
 /** Atomically write text to a file using tmp+rename. Ensures parent directory exists. */
 export function atomicWriteText(filePath: string, content: string): void {
@@ -22,8 +25,8 @@ function appendJsonl(filePath: string, record: unknown): void {
     const dir = dirname(filePath);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
     appendFileSync(filePath, JSON.stringify(record) + '\n', { mode: 0o600 });
-  } catch {
-    // Best-effort — never break caller flow
+  } catch (err) {
+    L.warn('appendJsonl failed', { filePath, error: (err as Error).message });
   }
 }
 

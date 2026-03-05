@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitMessage, stripAnsi, elapsedSec, formatDurationSec, splitArgs, tryParseJson } from '../../src/lib/text.js';
+import { splitMessage, stripAnsi, elapsedSec, formatDurationSec, splitArgs, tryParseJson, tryParseJsonObj } from '../../src/lib/text.js';
 
 describe('splitMessage', () => {
   it('returns single chunk for short messages', () => {
@@ -106,8 +106,29 @@ describe('tryParseJson', () => {
     expect(tryParseJson('{broken')).toBeUndefined();
   });
 
-  it('supports generic type parameter', () => {
-    const result = tryParseJson<{ action: string }>('{"action":"allow"}');
+  it('parses and allows typed access via assertion', () => {
+    const result = tryParseJson('{"action":"allow"}') as { action: string } | undefined;
     expect(result?.action).toBe('allow');
+  });
+});
+
+describe('tryParseJsonObj', () => {
+  it('parses valid JSON objects', () => {
+    expect(tryParseJsonObj('{"a":1}')).toEqual({ a: 1 });
+  });
+
+  it('returns undefined for arrays', () => {
+    expect(tryParseJsonObj('[1,2]')).toBeUndefined();
+  });
+
+  it('returns undefined for primitives', () => {
+    expect(tryParseJsonObj('"hello"')).toBeUndefined();
+    expect(tryParseJsonObj('42')).toBeUndefined();
+    expect(tryParseJsonObj('null')).toBeUndefined();
+    expect(tryParseJsonObj('true')).toBeUndefined();
+  });
+
+  it('returns undefined for invalid JSON', () => {
+    expect(tryParseJsonObj('not json')).toBeUndefined();
   });
 });

@@ -1,6 +1,9 @@
 import { PATHS } from './paths.js';
 import { atomicWriteJson } from './fs-utils.js';
 import { activeTasks } from './sequencer.js';
+import { log } from './log.js';
+
+const L = log('tracker');
 
 const MAX_HISTORY = 10;
 const MAX_PREVIEW = 80;
@@ -20,7 +23,7 @@ function truncate(s: string): string {
 function persist(): void {
   try {
     atomicWriteJson(PATHS.status, getStatusSnapshot());
-  } catch { /* best-effort */ }
+  } catch (err) { L.warn('status persist failed', { error: (err as Error).message }); }
 }
 
 export function trackStart(agentId: string, sessionKey: string, message: string): void {
