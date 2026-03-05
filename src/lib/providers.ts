@@ -130,7 +130,7 @@ export function parseProviderOutput(def: Provider, raw: string): string {
   const parts: string[] = [];
 
   for (const line of lines) {
-    const obj = tryParseJson<Record<string, unknown>>(line);
+    const obj = tryParseJson(line) as Record<string, unknown> | undefined;
     if (obj && obj['type'] === def.jsonlExtract.type) {
       const content = obj[def.jsonlExtract.textField];
       if (typeof content === 'string') parts.push(content);
@@ -153,7 +153,7 @@ export function extractUsage(def: Provider, raw: string): TokenUsage | undefined
 function extractJsonlUsage(raw: string): TokenUsage | undefined {
   const lines = raw.split('\n').filter(Boolean);
   for (const line of lines) {
-    const obj = tryParseJson<Record<string, unknown>>(line);
+    const obj = tryParseJson(line) as Record<string, unknown> | undefined;
     if (obj?.['type'] === 'result' && obj['usage']) {
       const u = obj['usage'] as Record<string, unknown>;
       const input = typeof u['input_tokens'] === 'number' ? u['input_tokens'] : undefined;
@@ -174,7 +174,7 @@ function pickNumericField(obj: Record<string, unknown>, ...names: string[]): num
 
 /** Gemini JSON: look for usageMetadata.promptTokenCount / candidatesTokenCount */
 function extractJsonUsage(raw: string): TokenUsage | undefined {
-  const obj = tryParseJson<Record<string, unknown>>(raw);
+  const obj = tryParseJson(raw) as Record<string, unknown> | undefined;
   if (!obj) return undefined;
   const meta = (obj['usageMetadata'] ?? obj['usage_metadata']) as Record<string, unknown> | undefined;
   if (!meta) return undefined;

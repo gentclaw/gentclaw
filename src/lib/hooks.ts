@@ -37,7 +37,7 @@ function runSubprocess(hook: HookDef, msg: InboundMsg): Promise<HookAction> {
         resolve({ action: 'allow' });
         return;
       }
-      const parsed = tryParseJson<Record<string, unknown>>(stdout.trim());
+      const parsed = tryParseJson(stdout.trim()) as Record<string, unknown> | undefined;
       if (!parsed || typeof parsed.action !== 'string' || !VALID_ACTIONS.has(parsed.action)) {
         L.warn(parsed ? 'hook returned invalid action, allowing' : 'hook returned invalid JSON, allowing', { hook: hook.name });
         resolve({ action: 'allow' });

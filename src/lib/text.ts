@@ -6,8 +6,8 @@ export function splitArgs(s: string): string[] {
 }
 
 /** Try to parse JSON, returning undefined on failure. */
-export function tryParseJson<T = unknown>(s: string): T | undefined {
-  try { return JSON.parse(s) as T; } catch { return undefined; }
+export function tryParseJson(s: string): unknown {
+  try { return JSON.parse(s) as unknown; } catch { return undefined; }
 }
 
 /**

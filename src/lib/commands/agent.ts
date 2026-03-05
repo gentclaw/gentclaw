@@ -6,7 +6,7 @@ import { auditLog } from '../audit.js';
 import { parseRef, parseSafeId, parseForceFlag, parseSubcommand } from '../parse-ref.js';
 import { cmdReply } from '../types.js';
 import { splitArgs } from '../text.js';
-import type { Agent, CmdResult, CmdContext } from '../types.js';
+import type { CmdResult, CmdContext } from '../types.js';
 
 export function formatAgentList(): string {
   const agents = getAgents();
