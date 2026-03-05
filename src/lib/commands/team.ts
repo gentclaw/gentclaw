@@ -6,13 +6,26 @@ import { auditLog } from '../audit.js';
 import { parseRef, parseSafeId, parseForceFlag, parseSubcommand } from '../parse-ref.js';
 import { cmdReply } from '../types.js';
 import { splitArgs } from '../text.js';
-import type { CmdResult, CmdContext } from '../types.js';
+import type { CmdResult, CmdContext, Team } from '../types.js';
 
 /** Parse "<team> <agent>" args with @-prefix stripping and lowercasing */
 function parseTeamAgentArgs(args: string): { teamId: string; agentId: string } | null {
   const parts = splitArgs(args);
   if (parts.length < 2) return null;
   return { teamId: parseRef(parts[0] ?? ''), agentId: parseRef(parts[1] ?? '') };
+}
+
+type TeamRef = { teamId: string; agentId: string; team: Team };
+
+/** Parse team+agent args and look up the team. Returns CmdResult on validation failure. */
+function resolveTeamRef(args: string, usage: string): { ref: TeamRef } | { err: CmdResult } {
+  const parsed = parseTeamAgentArgs(args);
+  if (!parsed) return { err: cmdReply(usage) };
+  const { teamId, agentId } = parsed;
+  const teams = getTeams();
+  const team = teams[teamId];
+  if (!team) return { err: cmdReply(`Team '${teamId}' not found.`) };
+  return { ref: { teamId, agentId, team } };
 }
 
 export function teamList(): CmdResult {
@@ -92,13 +105,9 @@ export function teamRemove(args: string, ctx: CmdContext): CmdResult {
 
 /** /team addagent <team> <agent> */
 export function teamAddAgent(args: string, ctx: CmdContext): CmdResult {
-  const parsed = parseTeamAgentArgs(args);
-  if (!parsed) return cmdReply('Usage: `/team addagent <team> <agent>`');
-  const { teamId, agentId } = parsed;
-
-  const teams = getTeams();
-  const team = teams[teamId];
-  if (!team) return cmdReply(`Team '${teamId}' not found.`);
+  const resolved = resolveTeamRef(args, 'Usage: `/team addagent <team> <agent>`');
+  if ('err' in resolved) return resolved.err;
+  const { teamId, agentId, team } = resolved.ref;
 
   const agents = getAgents();
   if (!agents[agentId]) return cmdReply(`Agent '${agentId}' not found.`);
@@ -111,13 +120,10 @@ export function teamAddAgent(args: string, ctx: CmdContext): CmdResult {
 
 /** /team setleader <team> <agent> */
 export function teamSetLeader(args: string, ctx: CmdContext): CmdResult {
-  const parsed = parseTeamAgentArgs(args);
-  if (!parsed) return cmdReply('Usage: `/team setleader <team> <agent>`');
-  const { teamId, agentId } = parsed;
+  const resolved = resolveTeamRef(args, 'Usage: `/team setleader <team> <agent>`');
+  if ('err' in resolved) return resolved.err;
+  const { teamId, agentId, team } = resolved.ref;
 
-  const teams = getTeams();
-  const team = teams[teamId];
-  if (!team) return cmdReply(`Team '${teamId}' not found.`);
   if (!team.agents.includes(agentId)) return cmdReply(`Agent '${agentId}' is not in team '${teamId}'.`);
   if (team.leader === agentId) return cmdReply(`Agent '${agentId}' is already leader of '${teamId}'.`);
 
@@ -128,13 +134,10 @@ export function teamSetLeader(args: string, ctx: CmdContext): CmdResult {
 
 /** /team removeagent <team> <agent> */
 export function teamRemoveAgent(args: string, ctx: CmdContext): CmdResult {
-  const parsed = parseTeamAgentArgs(args);
-  if (!parsed) return cmdReply('Usage: `/team removeagent <team> <agent>`');
-  const { teamId, agentId } = parsed;
+  const resolved = resolveTeamRef(args, 'Usage: `/team removeagent <team> <agent>`');
+  if ('err' in resolved) return resolved.err;
+  const { teamId, agentId, team } = resolved.ref;
 
-  const teams = getTeams();
-  const team = teams[teamId];
-  if (!team) return cmdReply(`Team '${teamId}' not found.`);
   if (!team.agents.includes(agentId)) return cmdReply(`Agent '${agentId}' is not in team '${teamId}'.`);
   if (team.leader === agentId) return cmdReply('Cannot remove leader. Use `/team setleader` first or remove the team.');
   if (team.agents.length <= 1) return cmdReply('Cannot remove last agent from team. Remove the team instead.');
