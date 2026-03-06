@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { getAgents, getDefaultAgentId, getSettings, updateSettings, updateAgent } from './config.js';
 import { deleteSession, stopFlagPath } from './sessions.js';
 import { listProviders } from './providers.js';
-import { getStatusSnapshot } from './tracker.js';
+import { getStatusSnapshot, summarizeAgents } from './tracker.js';
 import { resolveCustomCommand, listCustomCommands, listSkills } from './custom-commands.js';
 import { validateShellCmd } from './builtins/shell-safety.js';
 import { readAgentMemory, readSharedMemory, clearAgentMemory, clearSharedMemory } from './memory.js';
@@ -16,7 +16,6 @@ import { auditLog } from './audit.js';
 import { errMsg } from './errors.js';
 import { SCRIPT_DIR } from './paths.js';
 import { SUBPROCESS_ENV, MAX_MEMORY_PREVIEW, MAX_MEMORY_PER_AGENT, MAX_ERROR_PREVIEW } from './constants.js';
-import { elapsedSec, formatDurationSec } from './text.js';
 import { cmdReply } from './types.js';
 import type { CmdResult, CmdContext } from './types.js';
 
@@ -112,17 +111,9 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
       `Active tasks: ${snapshot.totalQueuedTasks}`,
     ];
 
-    for (const [agentId, activity] of Object.entries(snapshot.agents)) {
-      if (activity.current) {
-        lines.push(`*${agentId}* — busy (${elapsedSec(activity.current.startedAt)}s): ${activity.current.messagePreview}`);
-      } else {
-        lines.push(`*${agentId}* — idle`);
-      }
-      const last = activity.recentHistory[0];
-      if (last) {
-        const status = last.success ? 'ok' : 'error';
-        lines.push(`  last: ${status} (${formatDurationSec(last.durationMs)}, ${elapsedSec(last.finishedAt)}s ago)`);
-      }
+    for (const a of summarizeAgents(snapshot)) {
+      lines.push(`*${a.id}* — ${a.status}${a.preview ? `: ${a.preview}` : ''}`);
+      if (a.lastLine) lines.push(`  ${a.lastLine}`);
     }
 
     return cmdReply(lines.join('\n'));

@@ -17,17 +17,11 @@ export type RouteResult = {
   teamId?: string; // set when routed via team mention — value is the matched team ID
 };
 
-/** Parse leading @mention directive via character-level scan.
- * Captures a single contiguous non-whitespace token after '@' — multi-word display names
- * must be referenced by their single-word agent/team ID. */
+/** Parse leading @mention directive. */
 function parseDirective(text: string): Directive {
-  const trimmed = text.trimStart();
-  if (!trimmed.startsWith('@')) return { kind: 'plain', body: text };
-  let i = 1;
-  while (i < trimmed.length && !/\s/.test(trimmed[i] ?? '')) i++;
-  const ref = trimmed.slice(1, i);
-  if (!ref) return { kind: 'plain', body: text };
-  return { kind: 'mention', agentRef: ref, body: trimmed.slice(i).trimStart() };
+  const match = text.trimStart().match(/^@(\S+)\s*([\s\S]*)$/);
+  if (!match) return { kind: 'plain', body: text };
+  return { kind: 'mention', agentRef: match[1], body: match[2].trimStart() };
 }
 
 /** Fingerprint-based cache — rebuilds index only when source data changes. */

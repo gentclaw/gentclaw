@@ -40,6 +40,23 @@ function reaction(method: 'add' | 'remove', channel: string, timestamp: string, 
     .catch((err: unknown) => { L.warn(`reaction.${method} failed`, { name, error: errMsg(err) }); });
 }
 
+/** Manage reaction lifecycle: received → working → outcome → auto-remove. */
+async function withReactionLifecycle(channelId: string, ts: string, work: () => Promise<void>): Promise<void> {
+  void reaction('remove', channelId, ts, REACT_RECEIVED);
+  void reaction('add', channelId, ts, REACT_WORKING);
+  let outcome: typeof REACT_DONE | typeof REACT_ERROR = REACT_DONE;
+  try {
+    await work();
+  } catch {
+    outcome = REACT_ERROR;
+  } finally {
+    void reaction('remove', channelId, ts, REACT_WORKING);
+    void reaction('add', channelId, ts, outcome);
+    const t = setTimeout(() => { holdTimers.delete(t); void reaction('remove', channelId, ts, outcome); }, REACT_HOLD_MS);
+    holdTimers.add(t);
+  }
+}
+
 /** Runtime type guard — validates object has expected SlackFile shape. */
 function isSlackFile(f: unknown): f is { name?: string; size?: number; url_private?: string } {
   if (typeof f !== 'object' || f === null) return false;
@@ -179,31 +196,18 @@ async function handleEvent(
     channel: 'slack',
   };
 
-  // Signal received
+  // Process with per-session serialization + reaction lifecycle
   void reaction('add', channelId, ts, REACT_RECEIVED);
-
-  // Process with per-session serialization
-  await runSequential(sk, async () => {
-    // Transition: received → working
-    void reaction('remove', channelId, ts, REACT_RECEIVED);
-    void reaction('add', channelId, ts, REACT_WORKING);
-
-    let outcome: typeof REACT_DONE | typeof REACT_ERROR = REACT_DONE;
+  await runSequential(sk, () => withReactionLifecycle(channelId, ts, async () => {
     try {
       const response = await processMessage(msg);
       await reply(channelId, replyTs, response);
     } catch (err) {
-      outcome = REACT_ERROR;
       L.error('processing error', { sessionKey: sk, error: errMsg(err) });
       await reply(channelId, replyTs, `Error: ${errMsg(err)}`);
-    } finally {
-      // Transition: working → outcome
-      void reaction('remove', channelId, ts, REACT_WORKING);
-      void reaction('add', channelId, ts, outcome);
-      const t = setTimeout(() => { holdTimers.delete(t); void reaction('remove', channelId, ts, outcome); }, REACT_HOLD_MS);
-      holdTimers.add(t);
+      throw err; // signal error outcome to reaction lifecycle
     }
-  });
+  }));
 }
 
 /** Start the Slack listener (Socket Mode). */

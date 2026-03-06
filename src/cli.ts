@@ -5,7 +5,8 @@ import { listProviders } from './lib/providers.js';
 import { PATHS } from './lib/paths.js';
 import { installService, uninstallService, serviceStatus } from './lib/service.js';
 import { DEFAULT_HEARTBEAT_INTERVAL_MIN } from './lib/constants.js';
-import { elapsedSec, formatDurationSec } from './lib/text.js';
+import { elapsedSec } from './lib/text.js';
+import { summarizeAgents } from './lib/tracker.js';
 import type { StatusSnapshot } from './lib/tracker.js';
 
 const command = process.argv[2];
@@ -83,17 +84,9 @@ function showStatus(): void {
     console.log(`\nRuntime (${elapsedSec(snapshot.timestamp)}s ago):`);
     console.log(`Queued tasks: ${snapshot.totalQueuedTasks}`);
 
-    for (const [agentId, activity] of Object.entries(snapshot.agents)) {
-      if (activity.current) {
-        console.log(`  ${agentId}: busy (${elapsedSec(activity.current.startedAt)}s) — ${activity.current.messagePreview}`);
-      } else {
-        console.log(`  ${agentId}: idle`);
-      }
-      const last = activity.recentHistory[0];
-      if (last) {
-        const status = last.success ? 'ok' : 'error';
-        console.log(`    last: ${status} (${formatDurationSec(last.durationMs)}, ${elapsedSec(last.finishedAt)}s ago)`);
-      }
+    for (const a of summarizeAgents(snapshot)) {
+      console.log(`  ${a.id}: ${a.status}${a.preview ? ` — ${a.preview}` : ''}`);
+      if (a.lastLine) console.log(`    ${a.lastLine}`);
     }
   } catch {
     console.log('\nFailed to read runtime data');

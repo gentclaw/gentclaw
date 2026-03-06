@@ -2,6 +2,7 @@ import { PATHS } from './paths.js';
 import { atomicWriteJson } from './fs-utils.js';
 import { activeTasks } from './sequencer.js';
 import { log } from './log.js';
+import { elapsedSec, formatDurationSec } from './text.js';
 
 const L = log('tracker');
 
@@ -71,6 +72,23 @@ export function getStatusSnapshot(): StatusSnapshot {
   }
 
   return { agents, totalQueuedTasks: activeTasks(), timestamp: Date.now() };
+}
+
+export type FormattedAgent = { id: string; busy: boolean; status: string; preview?: string; lastLine?: string };
+
+/** Summarize agent activity into structured data for display. */
+export function summarizeAgents(snapshot: StatusSnapshot): FormattedAgent[] {
+  return Object.entries(snapshot.agents).map(([agentId, activity]) => {
+    const { current } = activity;
+    const busy = !!current;
+    const status = current ? `busy (${elapsedSec(current.startedAt)}s)` : 'idle';
+    const preview = current ? current.messagePreview : undefined;
+    const last = activity.recentHistory[0];
+    const lastLine = last
+      ? `last: ${last.success ? 'ok' : 'error'} (${formatDurationSec(last.durationMs)}, ${elapsedSec(last.finishedAt)}s ago)`
+      : undefined;
+    return { id: agentId, busy, status, preview, lastLine };
+  });
 }
 
 export function resetTracker(): void {

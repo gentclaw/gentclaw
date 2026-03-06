@@ -40,24 +40,28 @@ vi.mock('../../src/lib/providers.js', () => ({
   },
 }));
 
-vi.mock('../../src/lib/tracker.js', () => ({
-  getStatusSnapshot: () => ({
-    agents: {
-      coder: {
-        agentId: 'coder',
-        current: { agentId: 'coder', sessionKey: 's1', messagePreview: 'fix bug', startedAt: Date.now() - 5000 },
-        recentHistory: [],
+vi.mock('../../src/lib/tracker.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/lib/tracker.js')>();
+  return {
+    ...actual,
+    getStatusSnapshot: () => ({
+      agents: {
+        coder: {
+          agentId: 'coder',
+          current: { agentId: 'coder', sessionKey: 's1', messagePreview: 'fix bug', startedAt: Date.now() - 5000 },
+          recentHistory: [],
+        },
+        writer: {
+          agentId: 'writer',
+          current: null,
+          recentHistory: [{ agentId: 'writer', sessionKey: 's0', messagePreview: 'write docs', startedAt: 0, finishedAt: Date.now() - 10000, durationMs: 3000, success: true }],
+        },
       },
-      writer: {
-        agentId: 'writer',
-        current: null,
-        recentHistory: [{ agentId: 'writer', sessionKey: 's0', messagePreview: 'write docs', startedAt: 0, finishedAt: Date.now() - 10000, durationMs: 3000, success: true }],
-      },
-    },
-    totalQueuedTasks: 1,
-    timestamp: Date.now(),
-  }),
-}));
+      totalQueuedTasks: 1,
+      timestamp: Date.now(),
+    }),
+  };
+});
 
 const mockResolveCustomCommand = vi.fn();
 const mockListCustomCommands = vi.fn(() => ({}));

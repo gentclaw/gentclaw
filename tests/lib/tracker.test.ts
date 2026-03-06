@@ -12,7 +12,7 @@ vi.mock('../../src/lib/sequencer.js', () => ({
   activeTasks: vi.fn(() => 0),
 }));
 
-import { trackStart, trackFinish, getAgentActivity, getStatusSnapshot, resetTracker } from '../../src/lib/tracker.js';
+import { trackStart, trackFinish, getAgentActivity, getStatusSnapshot, resetTracker, summarizeAgents } from '../../src/lib/tracker.js';
 
 beforeEach(() => {
   resetTracker();
@@ -95,5 +95,35 @@ describe('tracker', () => {
     resetTracker();
     const snapshot = getStatusSnapshot();
     expect(Object.keys(snapshot.agents)).toHaveLength(0);
+  });
+
+  describe('summarizeAgents', () => {
+    it('returns structured data for busy and idle agents', () => {
+      trackStart('coder', 'sess-1', 'fix bug');
+      trackStart('writer', 'sess-2', 'write docs');
+      trackFinish('sess-2', true);
+
+      const result = summarizeAgents(getStatusSnapshot());
+      const coder = result.find(a => a.id === 'coder')!;
+      const writer = result.find(a => a.id === 'writer')!;
+
+      expect(coder.busy).toBe(true);
+      expect(coder.status).toMatch(/^busy \(\d+s\)$/);
+      expect(coder.preview).toBe('fix bug');
+      expect(coder.lastLine).toBeUndefined();
+
+      expect(writer.busy).toBe(false);
+      expect(writer.status).toBe('idle');
+      expect(writer.preview).toBeUndefined();
+      expect(writer.lastLine).toMatch(/^last: ok/);
+    });
+
+    it('shows error status in lastLine for failed tasks', () => {
+      trackStart('coder', 'sess-1', 'bad');
+      trackFinish('sess-1', false);
+
+      const [agent] = summarizeAgents(getStatusSnapshot());
+      expect(agent!.lastLine).toMatch(/^last: error/);
+    });
   });
 });
