@@ -85,10 +85,11 @@ function isSlackEvent(event: unknown): event is {
 }
 
 /** Stream-read body, abort once total bytes exceed `cap`. Slack's reported `size` is untrusted —
- *  a malformed file with `size:100` but a 10 GB body would OOM the daemon if we used resp.text(). */
+ *  a malformed file with `size:100` but a 10 GB body would OOM the daemon if we used resp.text().
+ *  Missing body → treat as overflow rather than fall back to unbounded resp.text(). */
 async function readCapped(resp: Response, cap: number): Promise<{ text: string; overflowed: boolean }> {
   const reader = resp.body?.getReader();
-  if (!reader) return { text: await resp.text(), overflowed: false };
+  if (!reader) return { text: '', overflowed: true };
 
   const chunks: Uint8Array[] = [];
   let received = 0;
