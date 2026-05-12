@@ -1,8 +1,8 @@
-import { writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync, spawn } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { getAgents, getDefaultAgentId, getSettings, updateSettings, updateAgent } from './config.js';
+import { atomicWriteText } from './fs-utils.js';
 import { deleteSession, stopFlagPath } from './sessions.js';
 import { listProviders } from './providers.js';
 import { getStatusSnapshot, summarizeAgents } from './tracker.js';
@@ -157,10 +157,9 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
   },
 
   stop: (_args, ctx) => {
-    const flagFile = stopFlagPath(ctx.sessionKey);
-    mkdirSync(dirname(flagFile), { recursive: true, mode: 0o700 });
-    /** mode 0o600 — IPC file must not be world-writable; any local user could otherwise signal stop. */
-    writeFileSync(flagFile, Date.now().toString(), { encoding: 'utf-8', mode: 0o600 });
+    /** atomicWriteText already enforces mode 0o600 in a 0o700 parent dir — same IPC-perm guarantee
+     *  as the prior manual block, but matches the atomic write+rename pattern used everywhere else. */
+    atomicWriteText(stopFlagPath(ctx.sessionKey), Date.now().toString());
     L.info('stop flag written', { sessionKey: ctx.sessionKey });
     return cmdReply('Stop signal sent.');
   },

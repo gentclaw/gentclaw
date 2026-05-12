@@ -141,6 +141,53 @@ describe('runHooks', () => {
     const result = await runHooks('preMessage', makeMsg());
     expect(result.action).toBe('allow');
   });
+
+  it('allows when subprocess stdin write throws synchronously (EPIPE)', async () => {
+    const mockExecFile = vi.mocked(execFile);
+    mockExecFile.mockImplementation((_cmd, _args, _opts, _cb) => {
+      // Simulate a child whose stdin throws on write — no callback fires
+      const stdin = {
+        write: () => { throw new Error('write EPIPE'); },
+        end: () => {},
+        on: () => stdin,
+      };
+      return { stdin, on: () => {} } as unknown as ReturnType<typeof execFile>;
+    });
+
+    mockSettings = {
+      hooks: {
+        preMessage: [{ name: 'epipe-hook', command: '/bin/true' }],
+      },
+    };
+
+    const result = await runHooks('preMessage', makeMsg());
+    expect(result.action).toBe('allow');
+  });
+
+  it('allows when subprocess emits spawn error (ENOENT)', async () => {
+    const mockExecFile = vi.mocked(execFile);
+    mockExecFile.mockImplementation((_cmd, _args, _opts, _cb) => {
+      const listeners: Record<string, ((arg: unknown) => void)[]> = {};
+      const child = {
+        stdin: { write: () => {}, end: () => {}, on: () => {} },
+        on: (ev: string, fn: (arg: unknown) => void) => {
+          (listeners[ev] ??= []).push(fn);
+          if (ev === 'error') setImmediate(() => fn(new Error('spawn ENOENT')));
+          return child;
+        },
+      };
+      return child as unknown as ReturnType<typeof execFile>;
+    });
+
+    mockSettings = {
+      hooks: {
+        preMessage: [{ name: 'enoent-hook', command: '/does/not/exist' }],
+      },
+    };
+
+    const result = await runHooks('preMessage', makeMsg());
+    expect(result.action).toBe('allow');
+  });
 });
 
 describe('parseHookAction', () => {

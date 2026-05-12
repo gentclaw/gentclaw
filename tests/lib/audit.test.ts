@@ -63,4 +63,26 @@ describe('auditLog', () => {
       auditLog({ action: 'cmd:test', sender: 'U1', detail: '', status: 'allowed' });
     }).not.toThrow();
   });
+
+  it('redacts secret patterns in detail and reason', () => {
+    auditLog({
+      action: 'cmd:bash',
+      sender: 'U1',
+      detail: 'echo xoxb-12345-abcdefghij',
+      status: 'denied',
+      reason: 'leaked sk-' + 'a'.repeat(30) + ' token',
+    });
+    const record = JSON.parse(readFileSync(mockPaths.audit, 'utf-8').trim());
+    expect(record.detail).not.toContain('xoxb-');
+    expect(record.detail).toContain('[REDACTED]');
+    expect(record.reason).not.toContain('sk-aaaa');
+    expect(record.reason).toContain('[REDACTED]');
+  });
+
+  it('truncates oversized detail to bound audit volume', () => {
+    auditLog({ action: 'custom:big', sender: 'U1', detail: 'x'.repeat(5000), status: 'allowed' });
+    const record = JSON.parse(readFileSync(mockPaths.audit, 'utf-8').trim());
+    expect(record.detail.length).toBeLessThanOrEqual(1001); // 1000 + ellipsis
+    expect(record.detail.endsWith('…')).toBe(true);
+  });
 });

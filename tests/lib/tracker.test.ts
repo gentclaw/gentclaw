@@ -54,6 +54,13 @@ describe('tracker', () => {
     expect(activity.current!.messagePreview.length).toBe(83); // 80 + '...'
   });
 
+  it('redacts secret patterns in messagePreview before persisting', () => {
+    trackStart('coder', 'sess-secret', 'please rotate xoxb-12345-abcdefghij now');
+    const activity = getAgentActivity('coder');
+    expect(activity.current!.messagePreview).not.toContain('xoxb-');
+    expect(activity.current!.messagePreview).toContain('[REDACTED]');
+  });
+
   it('caps history ring buffer at 10 (newest first)', () => {
     for (let i = 0; i < 15; i++) {
       trackStart('coder', `sess-${i}`, `msg-${i}`);

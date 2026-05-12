@@ -38,8 +38,19 @@ export function parseHookAction(raw: unknown): HookAction {
 /** Run a single subprocess hook. Receives JSON on stdin, parses JSON from stdout. Caller guarantees `command` is non-empty. */
 function runSubprocess(name: string, command: string, timeoutMs: number, msg: InboundMsg): Promise<HookAction> {
   return new Promise(resolve => {
+    let settled = false;
+    const settleAllow = (why: string) => {
+      if (settled) return;
+      settled = true;
+      L.warn(why, { hook: name });
+      auditLog({ action: 'hook-error', sender: '', detail: `${name}: ${why}`, status: 'allowed' });
+      resolve({ action: 'allow' });
+    };
+
     const child = execFile(command, [], { timeout: timeoutMs }, (err, stdout) => {
+      if (settled) return;
       if (err) {
+        settled = true;
         L.warn('hook subprocess failed, allowing', { hook: name, error: err.message });
         auditLog({ action: 'hook-error', sender: '', detail: `${name}: ${err.message}`, status: 'allowed' });
         resolve({ action: 'allow' });
@@ -47,15 +58,32 @@ function runSubprocess(name: string, command: string, timeoutMs: number, msg: In
       }
       const parsed = tryParseJson(stdout.trim());
       if (!parsed) {
-        L.warn('hook returned invalid JSON, allowing', { hook: name });
-        resolve({ action: 'allow' });
+        /** Audit invalid JSON — silent allow-on-parse-fail used to mask buggy/compromised hooks. */
+        settleAllow('hook returned invalid JSON, allowing');
         return;
       }
+      settled = true;
       resolve(parseHookAction(parsed));
     });
 
-    child.stdin?.write(JSON.stringify({ message: msg.message, sender: msg.sender, timestamp: msg.timestamp }));
-    child.stdin?.end();
+    /** Spawn errors (ENOENT, EACCES) emit on the child, not the execFile callback — handle explicitly so the promise can't hang. */
+    child.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      L.warn('hook spawn error, allowing', { hook: name, error: err.message });
+      auditLog({ action: 'hook-error', sender: '', detail: `${name}: ${err.message}`, status: 'allowed' });
+      resolve({ action: 'allow' });
+    });
+
+    /** EPIPE on a fast-exiting hook would throw synchronously from write/end and crash the daemon
+     *  without this guard — failsafe-allow keeps the daemon alive (parity with timeout/spawn paths). */
+    try {
+      child.stdin?.write(JSON.stringify({ message: msg.message, sender: msg.sender, timestamp: msg.timestamp }));
+      child.stdin?.end();
+    } catch (err) {
+      settleAllow(`hook stdin write failed: ${(err as Error).message}`);
+    }
+    child.stdin?.on('error', (err) => settleAllow(`hook stdin error: ${err.message}`));
   });
 }
 

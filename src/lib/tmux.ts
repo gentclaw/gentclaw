@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { existsSync, readdirSync, openSync, readSync, closeSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { TMUX_SESSION, TMUX_POLL_MS, SUBPROCESS_ENV } from './constants.js';
+import { TMUX_SESSION, TMUX_POLL_MS, SUBPROCESS_ENV, MAX_CHILD_OUTPUT_BYTES } from './constants.js';
 import { RunError } from './errors.js';
 import { clearStopFlag } from './sessions.js';
 import { stripAnsi } from './text.js';
@@ -43,6 +43,39 @@ function ensureSession(): void {
   }
 }
 
+/** Read up to `cap` bytes from a file — opens once, reads into a fixed buffer, closes.
+ *  Prevents readFileSync from pulling a runaway CLI's GB of output into daemon RAM. */
+function readCappedFile(path: string, cap: number): string {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, 'r');
+    const buf = Buffer.alloc(cap);
+    const n = readSync(fd, buf, 0, cap, 0);
+    return buf.subarray(0, n).toString('utf-8');
+  } finally {
+    if (fd !== undefined) try { closeSync(fd); } catch { /* ignore */ }
+  }
+}
+
+/** Stale tmux temp files leak agent output if a daemon crashed mid-run. Sweep once at startup —
+ *  files older than 1h that match our prefix are abandoned and safe to remove. */
+const STALE_TMUX_FILE_MS = 60 * 60 * 1000;
+let sweptStaleFiles = false;
+function sweepStaleTmuxFiles(): void {
+  if (sweptStaleFiles) return;
+  sweptStaleFiles = true;
+  try {
+    const now = Date.now();
+    for (const name of readdirSync(tmpdir())) {
+      if (!name.startsWith('gentclaw-') || !(name.endsWith('.out') || name.endsWith('.exit'))) continue;
+      const p = join(tmpdir(), name);
+      try {
+        if (now - statSync(p).mtimeMs > STALE_TMUX_FILE_MS) unlinkSync(p);
+      } catch { /* race or perms — skip */ }
+    }
+  } catch { /* tmpdir unreadable — skip */ }
+}
+
 /** Escape a string for safe embedding in a single-quoted shell argument. */
 export function shellEscape(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'";
@@ -62,6 +95,7 @@ export async function runInTmux(
   opts: TmuxRunOpts,
 ): Promise<{ response: string; exitCode: number }> {
   ensureSession();
+  sweepStaleTmuxFiles();
 
   const id = randomUUID().slice(0, 8);
   const outFile = join(tmpdir(), `gentclaw-${id}.out`);
@@ -70,8 +104,11 @@ export async function runInTmux(
 
   // Build shell command: run CLI, capture stdout+stderr, write exit code
   // shellEscape needed here because this string is interpreted by tmux's shell
+  // `umask 077` forces the redirected outFile/exitFile to mode 0o600 — on Linux
+  // /tmp is world-readable, so default umask (0o022) would leave agent output
+  // (potentially carrying memory-injected secrets) readable by any local user.
   const shellCmd = [cmd, ...args.map(shellEscape)].join(' ');
-  const wrapped = `cd ${shellEscape(opts.cwd)} && ${shellCmd} > ${shellEscape(outFile)} 2>&1; echo $? > ${shellEscape(exitFile)}`;
+  const wrapped = `umask 077 && cd ${shellEscape(opts.cwd)} && ${shellCmd} > ${shellEscape(outFile)} 2>&1; echo $? > ${shellEscape(exitFile)}`;
 
   // Build tmux new-window args array (no shell interpretation — execFileSync)
   const tmuxArgs = ['new-window', '-d', '-t', TMUX_SESSION, '-n', winName];
@@ -116,10 +153,10 @@ export async function runInTmux(
     }, TMUX_POLL_MS);
   });
 
-  // Read results
-  const response = existsSync(outFile) ? stripAnsi(readFileSync(outFile, 'utf-8')) : '';
+  // Read results — cap outFile read so a runaway CLI can't OOM the daemon on readback.
+  const response = existsSync(outFile) ? stripAnsi(readCappedFile(outFile, MAX_CHILD_OUTPUT_BYTES)) : '';
   const exitCode = existsSync(exitFile)
-    ? parseInt(readFileSync(exitFile, 'utf-8').trim(), 10) || 0
+    ? parseInt(readCappedFile(exitFile, 32).trim(), 10) || 0
     : stopped ? 130 : 1;
 
   // Cleanup temp files

@@ -2,6 +2,7 @@ import { PATHS } from './paths.js';
 import { atomicWriteJson } from './fs-utils.js';
 import { activeTasks } from './sequencer.js';
 import { log } from './log.js';
+import { redactSecrets } from './secrets.js';
 import { elapsedSec, formatDurationSec } from './text.js';
 
 const L = log('tracker');
@@ -17,8 +18,11 @@ export type StatusSnapshot = { agents: Record<string, AgentActivity>; totalQueue
 const active = new Map<string, ActiveTask>();
 const history = new Map<string, CompletedTask[]>();
 
+/** Redact secrets before truncating — status.json is persisted to disk and surfaced via `/status`,
+ *  so a Slack message containing an API key must not echo through. */
 function truncate(s: string): string {
-  return s.length > MAX_PREVIEW ? s.slice(0, MAX_PREVIEW) + '...' : s;
+  const safe = redactSecrets(s);
+  return safe.length > MAX_PREVIEW ? safe.slice(0, MAX_PREVIEW) + '...' : safe;
 }
 
 function persist(): void {
