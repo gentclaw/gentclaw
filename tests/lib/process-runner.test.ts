@@ -86,4 +86,19 @@ describe('process-runner', () => {
     });
     expect(result.response).toBe('red');
   });
+
+  it('kills child when combined output exceeds the cap', async () => {
+    // yes prints "y\n" forever — well past MAX_CHILD_OUTPUT_BYTES (10MB) in a fraction of a second.
+    // Should be killed before timeout fires.
+    const start = Date.now();
+    const result = await runCommand('sh', ['-c', 'yes | head -c 20000000'], {
+      cwd: '/tmp',
+      timeout: 30_000,
+      stopFlagFile: '/tmp/nonexistent-stop-flag',
+    });
+    // Either resolves (cap → kill → exit) or rejects (cap → kill → non-zero). Both prove the cap fired.
+    expect(Date.now() - start).toBeLessThan(15_000);
+    // Buffer should have been capped — well under the raw 20MB the producer would have written.
+    expect(Buffer.byteLength(result.response, 'utf8')).toBeLessThanOrEqual(11 * 1024 * 1024);
+  }, 30_000);
 });

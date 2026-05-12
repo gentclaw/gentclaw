@@ -4,6 +4,7 @@ import { readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { PATHS } from './paths.js';
 import { atomicWriteText } from './fs-utils.js';
+import { MAX_MEMORY_TAGS_PER_RESPONSE } from './constants.js';
 
 export const MEMORY_FILE = 'memory.md';
 export const SHARED_MEMORY_FILE = 'shared-memory.md';
@@ -146,10 +147,12 @@ export function stripMemoryTags(text: string): string {
     .trim();
 }
 
-/** Extract memory tags from agent response, persist to files, return cleaned text. */
+/** Extract memory tags from agent response, persist to files, return cleaned text.
+ *  Honours at most MAX_MEMORY_TAGS_PER_RESPONSE of each kind — a single chatty reply
+ *  must not be able to flood memory storage. Excess tags are still stripped from the visible reply. */
 export function extractMemoryFromResponse(agentId: string, response: string): string {
-  const agentMatches = [...response.matchAll(MEMORY_TAG_RE)];
-  const sharedMatches = [...response.matchAll(SHARED_MEMORY_TAG_RE)];
+  const agentMatches = [...response.matchAll(MEMORY_TAG_RE)].slice(0, MAX_MEMORY_TAGS_PER_RESPONSE);
+  const sharedMatches = [...response.matchAll(SHARED_MEMORY_TAG_RE)].slice(0, MAX_MEMORY_TAGS_PER_RESPONSE);
 
   if (agentMatches.length === 0 && sharedMatches.length === 0) {
     return response;

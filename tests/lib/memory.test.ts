@@ -319,4 +319,21 @@ describe('extractMemoryFromResponse', () => {
     expect(result).toBe('mid');
     expect(fs.renameSync).toHaveBeenCalledTimes(2);
   });
+
+  it('caps tags processed per response to prevent bulk memory pollution', () => {
+    vi.mocked(fs.readFileSync).mockImplementation(() => { throw new Error('ENOENT'); });
+    vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
+    vi.mocked(fs.renameSync).mockImplementation(() => undefined);
+    vi.mocked(fs.mkdirSync).mockImplementation(() => undefined as any);
+
+    // 20 agent + 20 shared tags — only MAX_MEMORY_TAGS_PER_RESPONSE (5) of each should be honoured.
+    const agent = Array.from({ length: 20 }, (_, i) => `<memory>a${i}</memory>`).join(' ');
+    const shared = Array.from({ length: 20 }, (_, i) => `<shared-memory>s${i}</shared-memory>`).join(' ');
+    const result = extractMemoryFromResponse('bot', `${agent} keep ${shared}`);
+
+    // All tags stripped from visible response regardless of cap
+    expect(result).toBe('keep');
+    // 5 agent writes + 5 shared writes = 10 renameSync calls
+    expect(fs.renameSync).toHaveBeenCalledTimes(10);
+  });
 });

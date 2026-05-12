@@ -183,4 +183,45 @@ describe('slack channel', () => {
     await eventHandlers['message']!({ event: 'string' });
     expect(mockPostMessage).not.toHaveBeenCalled();
   });
+
+  it('marks reaction as error (x) when Slack reply fails', async () => {
+    // postMessage rejects — internal reply() must propagate so lifecycle sees error
+    mockPostMessage.mockReset().mockRejectedValueOnce(new Error('slack 500'));
+    await eventHandlers['message']!({
+      event: { user: 'U1', text: 'hello', channel: 'C1', ts: '1.0' },
+    });
+    const adds = mockReactionsAdd.mock.calls.map((c: { name: string }[]) => c[0].name);
+    expect(adds).toContain('x');
+    expect(adds).not.toContain('white_check_mark');
+  });
+
+  it('caps oversized file download response', async () => {
+    // Build a Response whose body streams more than MAX_FILE_SIZE (100KB) bytes.
+    const fakeBig = new Uint8Array(150_000);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(fakeBig); controller.close(); },
+    });
+    const fetchMock = vi.fn(async () => new Response(stream, {
+      status: 200,
+      headers: { 'content-length': '' }, // declared empty — forces stream cap to fire
+    }));
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      await eventHandlers['message']!({
+        event: {
+          user: 'U1', text: 'check this', channel: 'C1', ts: '1.0',
+          files: [{ name: 'big.txt', size: 50, url_private: 'https://files.slack.com/x' }],
+        },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    // Agent gets the skip notice — never receives the 150KB blob
+    const call = mockProcessMessage.mock.calls[0]?.[0] as { message: string } | undefined;
+    expect(call?.message).toContain('skipped');
+    expect(call?.message).not.toMatch(/-{3} file: big\.txt -{3}\n /);
+  });
 });

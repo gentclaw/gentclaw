@@ -10,7 +10,14 @@ vi.mock('../../src/lib/hooks.js');
 vi.mock('../../src/lib/invocation-log.js');
 vi.mock('../../src/lib/audit.js');
 vi.mock('../../src/lib/tracker.js');
-vi.mock('../../src/lib/memory.js');
+vi.mock('../../src/lib/memory.js', () => ({
+  extractMemoryFromResponse: vi.fn(),
+  stripMemoryTags: (s: string) => s
+    .replace(/<shared-memory>[\s\S]*?<\/shared-memory>/gi, '')
+    .replace(/<memory>[\s\S]*?<\/memory>/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim(),
+}));
 
 import { processMessage } from '../../src/lib/pipeline.js';
 import { resolveRoute } from '../../src/lib/routing.js';
@@ -107,6 +114,18 @@ describe('processMessage', () => {
     });
     await processMessage(msg);
     expect(setSessionAgent).not.toHaveBeenCalled();
+  });
+
+  it('strips <memory>/<shared-memory> tags from inbound user message before hooks', async () => {
+    const injected: InboundMsg = {
+      ...msg,
+      message: 'hi <memory>backdoor instruction</memory> there',
+    };
+    await processMessage(injected);
+    // preMessage hook sees the cleaned message — attacker-supplied tags never reach the agent
+    expect(runHooks).toHaveBeenNthCalledWith(1, 'preMessage', expect.objectContaining({
+      message: 'hi  there',
+    }));
   });
 
   it('blocks response when postMessage hook blocks', async () => {

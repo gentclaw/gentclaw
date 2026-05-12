@@ -84,6 +84,29 @@ function isSlackEvent(event: unknown): event is {
   return typeof ev.channel === 'string' && typeof ev.ts === 'string';
 }
 
+/** Stream-read body, abort once total bytes exceed `cap`. Slack's reported `size` is untrusted —
+ *  a malformed file with `size:100` but a 10 GB body would OOM the daemon if we used resp.text(). */
+async function readCapped(resp: Response, cap: number): Promise<{ text: string; overflowed: boolean }> {
+  const reader = resp.body?.getReader();
+  if (!reader) return { text: await resp.text(), overflowed: false };
+
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  let overflowed = false;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    received += value.byteLength;
+    if (received > cap) {
+      overflowed = true;
+      await reader.cancel();
+      break;
+    }
+    chunks.push(value);
+  }
+  return { text: Buffer.concat(chunks.map(c => Buffer.from(c))).toString('utf-8'), overflowed };
+}
+
 /** Download text content from Slack file attachments. Returns file contents appended to message. */
 async function downloadAttachments(files: unknown[], botToken: string): Promise<string> {
   const parts: string[] = [];
@@ -109,7 +132,17 @@ async function downloadAttachments(files: unknown[], botToken: string): Promise<
         parts.push(`[file: ${name} — download failed: ${resp.status}]`);
         continue;
       }
-      const text = await resp.text();
+      /** Reject early via Content-Length when present, then stream-cap the body — Slack `size` is untrusted. */
+      const declared = parseInt(resp.headers.get('content-length') ?? '', 10);
+      if (Number.isFinite(declared) && declared > MAX_FILE_SIZE) {
+        parts.push(`[file: ${name} — skipped (content-length exceeded)]`);
+        continue;
+      }
+      const { text, overflowed } = await readCapped(resp, MAX_FILE_SIZE);
+      if (overflowed) {
+        parts.push(`[file: ${name} — skipped (body exceeded cap during download)]`);
+        continue;
+      }
       parts.push(`--- file: ${name} ---\n${text}\n--- end file ---`);
     } catch (err) {
       parts.push(`[file: ${name} — error: ${errMsg(err)}]`);
@@ -130,11 +163,11 @@ function isAllowed(userId: string): boolean {
   return allowed.includes(userId);
 }
 
-/** Post a reply to Slack, splitting long messages. */
+/** Post a reply to Slack, splitting long messages. Throws on Slack API failure so the reaction lifecycle can mark error. */
 async function reply(channelId: string, threadTs: string, text: string): Promise<void> {
+  const formatted = formatForSlack(text);
+  const chunks = splitMessage(formatted);
   try {
-    const formatted = formatForSlack(text);
-    const chunks = splitMessage(formatted);
     for (const chunk of chunks) {
       await app.client.chat.postMessage({
         channel: channelId,
@@ -145,6 +178,7 @@ async function reply(channelId: string, threadTs: string, text: string): Promise
     L.info('posted to slack', { channel: channelId, chunks: chunks.length });
   } catch (err) {
     L.error('reply failed', { channel: channelId, error: errMsg(err) });
+    throw err;
   }
 }
 
@@ -210,7 +244,8 @@ async function handleEvent(
       await reply(channelId, replyTs, response);
     } catch (err) {
       L.error('processing error', { sessionKey: sk, error: errMsg(err) });
-      await reply(channelId, replyTs, `Error: ${errMsg(err)}`);
+      /** Best-effort error notice — if Slack post fails here too, the outer throw still marks the reaction as error. */
+      try { await reply(channelId, replyTs, `Error: ${errMsg(err)}`); } catch { /* logged in reply() */ }
       throw err; // signal error outcome to reaction lifecycle
     }
   }));

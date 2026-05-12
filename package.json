@@ -1,6 +1,6 @@
 {
   "name": "gentclaw",
-  "version": "0.3.31",
+  "version": "0.3.32",
   "description": "Always-on AI agent daemon — talk to Claude, Gemini, or any CLI model through Slack",
   "license": "MIT",
   "author": "Alex Markovic (https://gentclaw.com)",

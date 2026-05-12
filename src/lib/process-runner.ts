@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { RunError, errMsg } from './errors.js';
-import { STOP_FLAG_POLL_MS, SPAWN_ENV } from './constants.js';
+import { STOP_FLAG_POLL_MS, SPAWN_ENV, MAX_CHILD_OUTPUT_BYTES } from './constants.js';
 import { clearStopFlag } from './sessions.js';
 import { stripAnsi } from './text.js';
 import { log } from './log.js';
@@ -47,13 +47,30 @@ export function runCommand(
 
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
-    child.stdout.on('data', (d: Buffer) => stdout.push(d));
-    child.stderr.on('data', (d: Buffer) => stderr.push(d));
+    let outBytes = 0;
+    let errBytes = 0;
+    let overflowed = false;
 
     const killWithEscalation = () => {
       child.kill('SIGTERM');
       killTimer = setTimeout(() => { if (!settled) child.kill('SIGKILL'); }, 5_000);
     };
+
+    /** Buffer until the combined cap is hit, then drop further chunks and kill the child.
+     *  A runaway CLI tool printing GB of output must not exhaust daemon RAM. */
+    const onData = (sink: Buffer[], d: Buffer, isStderr: boolean) => {
+      if (overflowed) return;
+      if (isStderr) errBytes += d.length; else outBytes += d.length;
+      if (outBytes + errBytes > MAX_CHILD_OUTPUT_BYTES) {
+        overflowed = true;
+        L.warn('child output exceeded cap, killing', { outBytes, errBytes });
+        killWithEscalation();
+        return;
+      }
+      sink.push(d);
+    };
+    child.stdout.on('data', (d: Buffer) => onData(stdout, d, false));
+    child.stderr.on('data', (d: Buffer) => onData(stderr, d, true));
 
     /**
      * Stop-flag watcher — polls filesystem for a stop-flag file.

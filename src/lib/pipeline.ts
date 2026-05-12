@@ -8,13 +8,18 @@ import { log } from './log.js';
 import { logInvocation } from './invocation-log.js';
 import { auditLog } from './audit.js';
 import { trackStart, trackFinish } from './tracker.js';
-import { extractMemoryFromResponse } from './memory.js';
+import { extractMemoryFromResponse, stripMemoryTags } from './memory.js';
 import type { InboundMsg } from './types.js';
 
 const L = log('pipeline');
 
 /** Process a single message through the pipeline: hooks → route → run agent → hooks → response. */
 export async function processMessage(msg: InboundMsg): Promise<string> {
+  /** Strip <memory>/<shared-memory> tags from inbound text — these tags are how the LLM signals
+   *  "save this", so accepting them from user input would let an attacker plant arbitrary memory
+   *  entries via the agent's echo. Only the LLM's own response should be able to write memory. */
+  msg = { ...msg, message: stripMemoryTags(msg.message) };
+
   // Pre-message hooks (rate limit, content guard, custom validation)
   const pre = await runHooks('preMessage', msg);
   if (pre.action === 'block') {
