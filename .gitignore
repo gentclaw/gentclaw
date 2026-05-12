@@ -8,6 +8,7 @@ src/**/*.js.map
 .DS_Store
 *.md
 !README.md
+!ROADMAP.md
 !CONTRIBUTING.md
 !CLAUDE.md
 !LICENSE.md
