@@ -122,7 +122,7 @@ async function downloadAttachments(files: unknown[], botToken: string): Promise<
   const parts: string[] = [];
   for (const f of files) {
     if (!isSlackFile(f)) continue;
-    const name = sanitizeFileName(f.name || 'unnamed');
+    const name = sanitizeFileName(f.name ?? '');
     const size = f.size || 0;
     const url = f.url_private;
 
