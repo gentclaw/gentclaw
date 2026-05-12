@@ -27,16 +27,28 @@ describe('url-safety', () => {
 
   describe('blocks IPv6 private ranges', () => {
     for (const url of [
+      // Link-local fe80::/10 — fe80–febf first hextet
       'http://[fe80::1]/api',
+      'http://[fe90::1]/api',
+      'http://[fea0::1]/api',
+      'http://[feab::1]/api',
+      'http://[febf::1]/api',
+      // ULA fc00::/7 — fc00–fdff first hextet
       'http://[fc00::1]/api',
+      'http://[fc12::1]/api',
+      'http://[fcff::1]/api',
       'http://[fd00::abcd]/api',
+      'http://[fdab::1]/api',
+      'http://[fdff::1]/api',
     ]) it(`blocks ${url}`, () => expect(isBlockedUrl(url)).toBe(true));
   });
 
-  describe('blocks .local / .internal / cloud metadata', () => {
+  describe('blocks .local / .internal / .localhost / cloud metadata', () => {
     for (const url of [
       'http://myserver.local/api',
       'http://db.internal/query',
+      'http://db.localhost/admin',
+      'http://files.localhost/secret',
       'http://169.254.169.254/latest/meta-data',
       'http://metadata.google.internal/computeMetadata',
     ]) it(`blocks ${url}`, () => expect(isBlockedUrl(url)).toBe(true));
@@ -64,6 +76,11 @@ describe('url-safety', () => {
       'https://172.32.0.1/api',
       'https://192.167.1.1/api',
       'https://11.0.0.1/api',
+      // IPv6 ranges adjacent to private — must remain allowed
+      'http://[fe7f::1]/api',  // just below link-local
+      'http://[fec0::1]/api',  // deprecated site-local, not link-local
+      'http://[fb00::1]/api',  // just below ULA
+      'http://[fe00::1]/api',  // not link-local (top 10 bits differ)
     ]) it(`allows ${url}`, () => expect(isBlockedUrl(url)).toBe(false));
   });
 

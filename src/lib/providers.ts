@@ -45,15 +45,17 @@ export function registerProvider(id: string, def: Provider): void {
   registry.set(id, def);
 }
 
-/** Validate runtime shape of a custom provider loaded from settings.json — built-ins skip this (TypeScript-checked). Catches malformed user config before it reaches buildProviderArgs/parseProviderOutput with confusing crashes. */
-function isValidProvider(v: unknown): v is Provider {
-  if (v == null || typeof v !== 'object' || Array.isArray(v)) return false;
+/** Validate runtime shape of a custom provider loaded from settings.json — built-ins skip this (TypeScript-checked). Returns the first bad field, or null if valid. */
+function validateProviderShape(v: unknown): string | null {
+  if (v == null || typeof v !== 'object' || Array.isArray(v)) return 'not an object';
   const p = v as Record<string, unknown>;
-  if (typeof p.name !== 'string' || typeof p.command !== 'string' || typeof p.defaultModel !== 'string') return false;
-  if (!Array.isArray(p.baseArgs) || p.baseArgs.some(a => typeof a !== 'string')) return false;
-  if (typeof p.models !== 'object' || p.models === null || Array.isArray(p.models)) return false;
-  if (Object.values(p.models as Record<string, unknown>).some(m => typeof m !== 'string')) return false;
-  return true;
+  if (typeof p.name !== 'string') return 'missing/invalid `name`';
+  if (typeof p.command !== 'string') return 'missing/invalid `command`';
+  if (typeof p.defaultModel !== 'string') return 'missing/invalid `defaultModel`';
+  if (!Array.isArray(p.baseArgs) || p.baseArgs.some(a => typeof a !== 'string')) return 'missing/invalid `baseArgs` (must be string[])';
+  if (typeof p.models !== 'object' || p.models === null || Array.isArray(p.models)) return 'missing/invalid `models` (must be object)';
+  if (Object.values(p.models as Record<string, unknown>).some(m => typeof m !== 'string')) return '`models` has non-string values';
+  return null;
 }
 
 export function getProvider(id: string): Provider {
@@ -62,7 +64,8 @@ export function getProvider(id: string): Provider {
   if (def) return def;
   const custom = getSettings().providers?.[id];
   if (custom) {
-    if (!isValidProvider(custom)) throw new ProviderError(`Provider "${id}" has invalid config (missing/wrong-typed name, command, defaultModel, baseArgs, or models)`);
+    const reason = validateProviderShape(custom);
+    if (reason) throw new ProviderError(`Provider "${id}" has invalid config: ${reason}`);
     return custom;
   }
   throw new ProviderError(`Unknown provider: ${id}`);

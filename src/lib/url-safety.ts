@@ -10,8 +10,12 @@ export function isBlockedUrl(url: string): boolean {
     const host = raw.startsWith('[') && raw.endsWith(']') ? raw.slice(1, -1) : raw;
 
     if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '::' || host === '0.0.0.0') return true;
-    if (host.startsWith('fe80:') || host.startsWith('fc00:') || host.startsWith('fd00:')) return true;
-    if (host.endsWith('.local') || host.endsWith('.internal')) return true;
+    /** IPv6 link-local fe80::/10 — first hextet fe80–febf */
+    if (/^fe[89ab][0-9a-f]:/.test(host)) return true;
+    /** IPv6 ULA fc00::/7 — first hextet fc00–fdff */
+    if (/^f[cd][0-9a-f]{2}:/.test(host)) return true;
+    /** RFC 6761 reserves all *.localhost — resolvers (glibc, macOS) answer 127.0.0.1. */
+    if (host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return true;
     if (host === '169.254.169.254' || host === 'metadata.google.internal') return true;
 
     if (host.startsWith('::ffff:')) {
