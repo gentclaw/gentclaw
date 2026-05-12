@@ -322,7 +322,10 @@ describe('extractMemoryFromResponse', () => {
 
   it('caps tags processed per response to prevent bulk memory pollution', () => {
     vi.mocked(fs.readFileSync).mockImplementation(() => { throw new Error('ENOENT'); });
-    vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
+    const writes: string[] = [];
+    vi.mocked(fs.writeFileSync).mockImplementation((_path, content) => {
+      writes.push(typeof content === 'string' ? content : Buffer.from(content as Buffer).toString('utf-8'));
+    });
     vi.mocked(fs.renameSync).mockImplementation(() => undefined);
     vi.mocked(fs.mkdirSync).mockImplementation(() => undefined as any);
 
@@ -335,5 +338,16 @@ describe('extractMemoryFromResponse', () => {
     expect(result).toBe('keep');
     // 5 agent writes + 5 shared writes = 10 renameSync calls
     expect(fs.renameSync).toHaveBeenCalledTimes(10);
+    /** Locks in the first-N semantic — if anyone flips slice(0,N) to slice(-N) or any other
+     *  selection, the saved tag identities change and this test catches it. */
+    const persisted = writes.join('\n');
+    for (const i of [0, 1, 2, 3, 4]) {
+      expect(persisted).toContain(`a${i}`);
+      expect(persisted).toContain(`s${i}`);
+    }
+    for (const i of [5, 10, 15, 19]) {
+      expect(persisted).not.toContain(`a${i}`);
+      expect(persisted).not.toContain(`s${i}`);
+    }
   });
 });

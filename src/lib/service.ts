@@ -26,9 +26,8 @@ function unitPath(): string {
   return resolve(homedir(), '.config', 'systemd', 'user', 'gentclaw.service');
 }
 
-/** Run a service-management binary with argv (no shell). Suppresses non-zero exits — callers treat
- *  empty output as "not running / already gone". Argv form avoids shell interpolation of USER/UID. */
-function run(bin: string, args: string[]): string {
+/** Query call — empty output is the "not running / already gone" signal; non-zero exit is treated the same. */
+function runQuery(bin: string, args: string[]): string {
   try {
     return execFileSync(bin, args, {
       encoding: 'utf-8',
@@ -37,6 +36,24 @@ function run(bin: string, args: string[]): string {
     }).trim();
   } catch {
     return '';
+  }
+}
+
+/** Mutating call — non-zero exit is a real failure that the user needs to see.
+ *  `allowFail` is for idempotent teardown (e.g. bootout when nothing is registered). */
+function runMutating(bin: string, args: string[], opts: { allowFail?: boolean } = {}): void {
+  try {
+    execFileSync(bin, args, {
+      stdio: ['ignore', 'inherit', 'inherit'],
+      env: SUBPROCESS_ENV,
+    });
+  } catch (err) {
+    if (opts.allowFail) {
+      L.debug('mutating call exited non-zero (allowed)', { bin, args });
+      return;
+    }
+    L.error('service command failed', { bin, args, error: (err as Error).message });
+    throw err;
   }
 }
 
@@ -69,7 +86,7 @@ export function systemdEnvValue(v: string): string {
   return v.replace(/[\r\n]/g, '');
 }
 
-function writePlist(): string {
+export function writePlist(): string {
   const path = plistPath();
   mkdirSync(resolve(homedir(), 'Library', 'LaunchAgents'), { recursive: true, mode: 0o700 });
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -97,23 +114,26 @@ function writePlist(): string {
   return path;
 }
 
-function writeUnit(): string {
+export function writeUnit(): string {
   const path = unitPath();
   mkdirSync(resolve(homedir(), '.config', 'systemd', 'user'), { recursive: true, mode: 0o700 });
+  /** Scrub newlines from every interpolated path — a newline in SCRIPT_DIR/PATHS.logs would
+   *  corrupt the unit file just like one in Environment=. systemdEnvValue is the same rule. */
+  const scrub = systemdEnvValue;
   const unit = `[Unit]
 Description=gentclaw
 After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=${SCRIPT_DIR}
-ExecStart=${NODE_BIN} ${SCRIPT_DIR}/dist/cli.js start
+WorkingDirectory=${scrub(SCRIPT_DIR)}
+ExecStart=${scrub(NODE_BIN)} ${scrub(SCRIPT_DIR)}/dist/cli.js start
 Restart=on-failure
 RestartSec=10
-Environment=PATH=${systemdEnvValue(process.env['PATH'] ?? '')}
-Environment=HOME=${systemdEnvValue(homedir())}
-StandardOutput=append:${PATHS.logs}/systemd-stdout.log
-StandardError=append:${PATHS.logs}/systemd-stderr.log
+Environment=PATH=${scrub(process.env['PATH'] ?? '')}
+Environment=HOME=${scrub(homedir())}
+StandardOutput=append:${scrub(PATHS.logs)}/systemd-stdout.log
+StandardError=append:${scrub(PATHS.logs)}/systemd-stderr.log
 
 [Install]
 WantedBy=default.target`;
@@ -128,16 +148,22 @@ export function installService(): void {
   if (os === 'darwin') {
     const domain = `gui/${uid()}/${LABEL}`;
     const target = `gui/${uid()}`;
-    run('launchctl', ['bootout', domain]);
+    /** bootout is idempotent teardown — non-zero exit when nothing is registered is expected. */
+    runMutating('launchctl', ['bootout', domain], { allowFail: true });
     writePlist();
-    run('launchctl', ['bootstrap', target, plistPath()]);
+    runMutating('launchctl', ['bootstrap', target, plistPath()]);
   } else if (os === 'linux') {
-    run('systemctl', ['--user', 'stop', 'gentclaw']);
+    runMutating('systemctl', ['--user', 'stop', 'gentclaw'], { allowFail: true });
     writeUnit();
-    run('systemctl', ['--user', 'daemon-reload']);
-    run('systemctl', ['--user', 'enable', '--now', 'gentclaw']);
+    runMutating('systemctl', ['--user', 'daemon-reload']);
+    runMutating('systemctl', ['--user', 'enable', '--now', 'gentclaw']);
     const user = safeUserName();
-    if (user) run('loginctl', ['enable-linger', user]);
+    if (user) {
+      runMutating('loginctl', ['enable-linger', user]);
+    } else {
+      /** Silent skip is a footgun — user won't know their service won't survive logout. */
+      L.warn('loginctl enable-linger skipped — $USER is unset or contains characters outside [a-zA-Z0-9_.-]. Service will stop on logout. Run `loginctl enable-linger <user>` manually.');
+    }
   } else {
     throw new Error(`Unsupported platform: ${os}. Start manually with: npm start`);
   }
@@ -147,12 +173,12 @@ export function installService(): void {
 export function uninstallService(): void {
   const os = platform();
   if (os === 'darwin') {
-    run('launchctl', ['bootout', `gui/${uid()}/${LABEL}`]);
+    runMutating('launchctl', ['bootout', `gui/${uid()}/${LABEL}`], { allowFail: true });
     try { unlinkSync(plistPath()); } catch { /* already gone */ }
   } else if (os === 'linux') {
-    run('systemctl', ['--user', 'disable', '--now', 'gentclaw']);
+    runMutating('systemctl', ['--user', 'disable', '--now', 'gentclaw'], { allowFail: true });
     try { unlinkSync(unitPath()); } catch { /* already gone */ }
-    run('systemctl', ['--user', 'daemon-reload']);
+    runMutating('systemctl', ['--user', 'daemon-reload']);
   }
 }
 
@@ -161,11 +187,11 @@ export function serviceStatus(): { registered: boolean; running: boolean } {
   const os = platform();
   if (os === 'darwin') {
     const registered = existsSync(plistPath());
-    const out = run('launchctl', ['print', `gui/${uid()}/${LABEL}`]);
+    const out = runQuery('launchctl', ['print', `gui/${uid()}/${LABEL}`]);
     return { registered, running: out.length > 0 };
   } else if (os === 'linux') {
     const registered = existsSync(unitPath());
-    const out = run('systemctl', ['--user', 'is-active', 'gentclaw']);
+    const out = runQuery('systemctl', ['--user', 'is-active', 'gentclaw']);
     return { registered, running: out === 'active' };
   }
   return { registered: false, running: false };

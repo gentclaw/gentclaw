@@ -10,14 +10,15 @@ vi.mock('../../src/lib/hooks.js');
 vi.mock('../../src/lib/invocation-log.js');
 vi.mock('../../src/lib/audit.js');
 vi.mock('../../src/lib/tracker.js');
-vi.mock('../../src/lib/memory.js', () => ({
-  extractMemoryFromResponse: vi.fn(),
-  stripMemoryTags: (s: string) => s
-    .replace(/<shared-memory>[\s\S]*?<\/shared-memory>/gi, '')
-    .replace(/<memory>[\s\S]*?<\/memory>/gi, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim(),
-}));
+/** Use the real stripMemoryTags so a future change to its semantics doesn't leave this test
+ *  validating a stale local re-implementation. Only extractMemoryFromResponse needs mocking. */
+vi.mock('../../src/lib/memory.js', async (importActual) => {
+  const actual = await importActual<typeof import('../../src/lib/memory.js')>();
+  return {
+    ...actual,
+    extractMemoryFromResponse: vi.fn(),
+  };
+});
 
 import { processMessage } from '../../src/lib/pipeline.js';
 import { resolveRoute } from '../../src/lib/routing.js';

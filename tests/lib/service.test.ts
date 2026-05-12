@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { xmlEscape, systemdEnvValue, safeUserName, resolveNodeBin } from '../../src/lib/service.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { xmlEscape, systemdEnvValue, safeUserName, resolveNodeBin, writePlist, writeUnit } from '../../src/lib/service.js';
 
 // ─── xmlEscape ───────────────────────────────────────────────────
 
@@ -88,5 +91,80 @@ describe('resolveNodeBin', () => {
   it('returns Cellar path unchanged when symlink target does not match', () => {
     /** /opt/homebrew/bin/node may not exist (Linux, non-homebrew darwin) — falls back to execPath. */
     expect(resolveNodeBin('/usr/local/Cellar/node/24.0/bin/node')).toBe('/usr/local/Cellar/node/24.0/bin/node');
+  });
+});
+
+// ─── writePlist / writeUnit (regression: catch missing escapes at interpolation sites) ────
+
+describe('writePlist', () => {
+  let tmpHome: string;
+  const originalHome = process.env['HOME'];
+  const originalPath = process.env['PATH'];
+
+  beforeEach(() => {
+    tmpHome = mkdtempSync(join(tmpdir(), 'gentclaw-svc-'));
+    process.env['HOME'] = tmpHome;
+  });
+
+  afterEach(() => {
+    process.env['HOME'] = originalHome;
+    process.env['PATH'] = originalPath;
+    rmSync(tmpHome, { recursive: true, force: true });
+  });
+
+  it.skipIf(process.platform === 'win32')('escapes & in PATH so the plist remains valid XML', () => {
+    /** A PATH like /opt/A&B/bin would corrupt the plist without xmlEscape. */
+    process.env['PATH'] = '/usr/bin:/opt/A&B/bin';
+    const path = writePlist();
+    const xml = readFileSync(path, 'utf-8');
+    expect(xml).toContain('/opt/A&amp;B/bin');
+    expect(xml).not.toMatch(/<string>[^<]*\/opt\/A&B\/bin/);
+  });
+
+  it.skipIf(process.platform === 'win32')('escapes <, >, ", \' anywhere a value is interpolated', () => {
+    process.env['PATH'] = `<bad>"'&`;
+    const xml = readFileSync(writePlist(), 'utf-8');
+    expect(xml).toContain('&lt;bad&gt;&quot;&apos;&amp;');
+    // No unescaped angle bracket between <string>…</string> on the PATH line
+    expect(xml).not.toMatch(/<string><bad>/);
+  });
+});
+
+describe('writeUnit', () => {
+  let tmpHome: string;
+  const originalHome = process.env['HOME'];
+  const originalPath = process.env['PATH'];
+
+  beforeEach(() => {
+    tmpHome = mkdtempSync(join(tmpdir(), 'gentclaw-svc-'));
+    process.env['HOME'] = tmpHome;
+  });
+
+  afterEach(() => {
+    process.env['HOME'] = originalHome;
+    process.env['PATH'] = originalPath;
+    rmSync(tmpHome, { recursive: true, force: true });
+  });
+
+  it.skipIf(process.platform === 'win32')('strips newlines from interpolated values', () => {
+    /** A newline in PATH would inject a fake systemd directive on the next line. After scrubbing,
+     *  the injected fragment must be concatenated onto Environment=PATH=, not standing alone. */
+    process.env['PATH'] = '/usr/bin\nMaliciousDirective=1';
+    const unit = readFileSync(writeUnit(), 'utf-8');
+    // No standalone MaliciousDirective= line — it must be glued onto the PATH value.
+    expect(unit.split('\n')).not.toContain('MaliciousDirective=1');
+    const pathLines = unit.split('\n').filter(l => l.startsWith('Environment=PATH='));
+    expect(pathLines).toHaveLength(1);
+    expect(pathLines[0]).toBe('Environment=PATH=/usr/binMaliciousDirective=1');
+  });
+
+  it.skipIf(process.platform === 'win32')('produces a parseable systemd unit with required sections', () => {
+    process.env['PATH'] = '/usr/bin';
+    const unit = readFileSync(writeUnit(), 'utf-8');
+    expect(unit).toContain('[Unit]');
+    expect(unit).toContain('[Service]');
+    expect(unit).toContain('[Install]');
+    expect(unit).toContain('ExecStart=');
+    expect(unit).toContain('WantedBy=default.target');
   });
 });
