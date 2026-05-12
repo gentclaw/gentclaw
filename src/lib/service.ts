@@ -5,15 +5,15 @@ import { homedir, platform } from 'node:os';
 import { PATHS, SCRIPT_DIR } from './paths.js';
 import { SERVICE_LABEL as LABEL, SUBPROCESS_ENV } from './constants.js';
 /** Resolve stable node path — prefer /opt/homebrew/bin/node symlink over versioned Cellar path. Cellar paths break on `brew upgrade node`. */
-const NODE_BIN = (() => {
-  const p = process.execPath;
-  if (!p.includes('/Cellar/')) return p;
+export function resolveNodeBin(execPath: string = process.execPath): string {
+  if (!execPath.includes('/Cellar/')) return execPath;
   try {
     const symlink = '/opt/homebrew/bin/node';
-    if (realpathSync(symlink) === p) return symlink;
+    if (realpathSync(symlink) === execPath) return symlink;
   } catch { /* fallback to execPath */ }
-  return p;
-})();
+  return execPath;
+}
+const NODE_BIN = resolveNodeBin();
 
 function plistPath(): string {
   return resolve(homedir(), 'Library', 'LaunchAgents', `${LABEL}.plist`);
@@ -47,13 +47,12 @@ function uid(): number {
 /** POSIX-style username for `loginctl enable-linger`. Validated to a strict character set
  *  before being passed as an argv element — defence in depth even though execFileSync
  *  does not invoke a shell. Empty / invalid → null (caller skips the call). */
-function safeUserName(): string | null {
-  const raw = process.env['USER'] ?? '';
+export function safeUserName(raw: string = process.env['USER'] ?? ''): string | null {
   return /^[a-zA-Z0-9_.-]+$/.test(raw) ? raw : null;
 }
 
 /** XML-escape a value before embedding in a plist `<string>` body. PATH commonly contains `&`. */
-function xmlEscape(v: string): string {
+export function xmlEscape(v: string): string {
   return v
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -63,7 +62,7 @@ function xmlEscape(v: string): string {
 }
 
 /** systemd `Environment=` values may not contain newlines; strip them defensively. */
-function systemdEnvValue(v: string): string {
+export function systemdEnvValue(v: string): string {
   return v.replace(/[\r\n]/g, '');
 }
 

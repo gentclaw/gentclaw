@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import { PATHS } from './paths.js';
 import { atomicWriteText } from './fs-utils.js';
 import { MAX_MEMORY_TAGS_PER_RESPONSE } from './constants.js';
+import { log } from './log.js';
+
+const L = log('memory');
 
 export const MEMORY_FILE = 'memory.md';
 export const SHARED_MEMORY_FILE = 'shared-memory.md';
@@ -151,8 +154,19 @@ export function stripMemoryTags(text: string): string {
  *  Honours at most MAX_MEMORY_TAGS_PER_RESPONSE of each kind — a single chatty reply
  *  must not be able to flood memory storage. Excess tags are still stripped from the visible reply. */
 export function extractMemoryFromResponse(agentId: string, response: string): string {
-  const agentMatches = [...response.matchAll(MEMORY_TAG_RE)].slice(0, MAX_MEMORY_TAGS_PER_RESPONSE);
-  const sharedMatches = [...response.matchAll(SHARED_MEMORY_TAG_RE)].slice(0, MAX_MEMORY_TAGS_PER_RESPONSE);
+  const allAgent = [...response.matchAll(MEMORY_TAG_RE)];
+  const allShared = [...response.matchAll(SHARED_MEMORY_TAG_RE)];
+  const agentMatches = allAgent.slice(0, MAX_MEMORY_TAGS_PER_RESPONSE);
+  const sharedMatches = allShared.slice(0, MAX_MEMORY_TAGS_PER_RESPONSE);
+
+  /** Visibility for silent DoS mitigation — without this log a chatty LLM dropping tags is invisible. */
+  const droppedAgent = allAgent.length - agentMatches.length;
+  const droppedShared = allShared.length - sharedMatches.length;
+  if (droppedAgent > 0 || droppedShared > 0) {
+    L.warn('memory tags truncated', {
+      agentId, droppedAgent, droppedShared, cap: MAX_MEMORY_TAGS_PER_RESPONSE,
+    });
+  }
 
   if (agentMatches.length === 0 && sharedMatches.length === 0) {
     return response;
