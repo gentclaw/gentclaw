@@ -1,8 +1,7 @@
-import { existsSync, unlinkSync } from 'node:fs';
 import { resolveRoute } from './routing.js';
 import { runAgent } from './run.js';
 import { getAgents } from './config.js';
-import { setSessionAgent, stopFlagPath, maybeCleanupSessions } from './sessions.js';
+import { setSessionAgent, stopFlagPath, clearStopFlag, maybeCleanupSessions } from './sessions.js';
 import { runHooks } from './hooks.js';
 import { HEARTBEAT_RUN_TIMEOUT_MS } from './constants.js';
 import { log } from './log.js';
@@ -40,9 +39,8 @@ export async function processMessage(msg: InboundMsg): Promise<string> {
     }
   }
 
-  // Check stop flag
-  if (msg.sessionKey && existsSync(stopFlagPath(msg.sessionKey))) {
-    try { unlinkSync(stopFlagPath(msg.sessionKey)); } catch {}
+  // Check stop flag — clearStopFlag's atomic unlink doubles as the existence check (returns true only if THIS caller won).
+  if (msg.sessionKey && clearStopFlag(stopFlagPath(msg.sessionKey))) {
     return 'Agent stopped.';
   }
 

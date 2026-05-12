@@ -9,6 +9,7 @@ import { ensureDirectories } from '../lib/fs-utils.js';
 import { initLog, log } from '../lib/log.js';
 import { errMsg, ConfigError } from '../lib/errors.js';
 import { startHeartbeat, stopHeartbeat } from '../lib/heartbeat.js';
+import { isBlockedUrl } from '../lib/url-safety.js';
 import type { InboundMsg } from '../lib/types.js';
 
 const MAX_FILE_SIZE = 100_000; // 100KB — skip large files
@@ -94,6 +95,11 @@ async function downloadAttachments(files: unknown[], botToken: string): Promise<
 
     if (!url || size > MAX_FILE_SIZE) {
       parts.push(`[file: ${name} — skipped (${size > MAX_FILE_SIZE ? 'too large' : 'no url'})]`);
+      continue;
+    }
+    /** SSRF guard — never send the bot token to a private/internal URL even if Slack's response is malformed. */
+    if (isBlockedUrl(url)) {
+      parts.push(`[file: ${name} — skipped (blocked url)]`);
       continue;
     }
 

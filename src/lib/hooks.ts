@@ -35,21 +35,19 @@ export function parseHookAction(raw: unknown): HookAction {
   return { action: 'allow' };
 }
 
-/** Run a single subprocess hook. Receives JSON on stdin, parses JSON from stdout. */
-function runSubprocess(hook: HookDef, msg: InboundMsg): Promise<HookAction> {
-  const timeout = hook.timeout ?? DEFAULT_TIMEOUT;
-
+/** Run a single subprocess hook. Receives JSON on stdin, parses JSON from stdout. Caller guarantees `command` is non-empty. */
+function runSubprocess(name: string, command: string, timeoutMs: number, msg: InboundMsg): Promise<HookAction> {
   return new Promise(resolve => {
-    const child = execFile(hook.command ?? '', [], { timeout }, (err, stdout) => {
+    const child = execFile(command, [], { timeout: timeoutMs }, (err, stdout) => {
       if (err) {
-        L.warn('hook subprocess failed, allowing', { hook: hook.name, error: err.message });
-        auditLog({ action: 'hook-error', sender: '', detail: `${hook.name}: ${err.message}`, status: 'allowed' });
+        L.warn('hook subprocess failed, allowing', { hook: name, error: err.message });
+        auditLog({ action: 'hook-error', sender: '', detail: `${name}: ${err.message}`, status: 'allowed' });
         resolve({ action: 'allow' });
         return;
       }
       const parsed = tryParseJson(stdout.trim());
       if (!parsed) {
-        L.warn('hook returned invalid JSON, allowing', { hook: hook.name });
+        L.warn('hook returned invalid JSON, allowing', { hook: name });
         resolve({ action: 'allow' });
         return;
       }
@@ -74,7 +72,7 @@ async function executeHook(hook: HookDef, msg: InboundMsg): Promise<HookAction> 
   }
 
   if (hook.command) {
-    return runSubprocess(hook, msg);
+    return runSubprocess(hook.name, hook.command, hook.timeout ?? DEFAULT_TIMEOUT, msg);
   }
 
   L.warn('hook has no builtin or command, allowing', { hook: hook.name });

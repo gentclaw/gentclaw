@@ -178,11 +178,12 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
     try {
       const parts = tokenizeArgs(cmd);
       if (!parts[0]) return cmdReply('Empty command.');
-      /** Intentionally inherits full process.env — user-facing shell needs PATH, HOME, etc. Unlike agent spawns (SPAWN_ENV), this is not a long-lived child. */
+      /** Use SUBPROCESS_ENV — without this, `/bash env` would dump SLACK_*, ANTHROPIC_API_KEY, etc. straight to a Slack reply. SUBPROCESS_ENV exposes only PATH/HOME/FORCE_COLOR. */
       const output = execFileSync(parts[0], parts.slice(1), {
         encoding: 'utf-8',
         timeout: 10_000,
         maxBuffer: 100_000,
+        env: SUBPROCESS_ENV,
       });
       const trimmed = output.trim();
       return cmdReply(trimmed ? `\`\`\`\n${trimmed}\n\`\`\`` : '(no output)');

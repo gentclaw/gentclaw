@@ -45,12 +45,26 @@ export function registerProvider(id: string, def: Provider): void {
   registry.set(id, def);
 }
 
+/** Validate runtime shape of a custom provider loaded from settings.json — built-ins skip this (TypeScript-checked). Catches malformed user config before it reaches buildProviderArgs/parseProviderOutput with confusing crashes. */
+function isValidProvider(v: unknown): v is Provider {
+  if (v == null || typeof v !== 'object' || Array.isArray(v)) return false;
+  const p = v as Record<string, unknown>;
+  if (typeof p.name !== 'string' || typeof p.command !== 'string' || typeof p.defaultModel !== 'string') return false;
+  if (!Array.isArray(p.baseArgs) || p.baseArgs.some(a => typeof a !== 'string')) return false;
+  if (typeof p.models !== 'object' || p.models === null || Array.isArray(p.models)) return false;
+  if (Object.values(p.models as Record<string, unknown>).some(m => typeof m !== 'string')) return false;
+  return true;
+}
+
 export function getProvider(id: string): Provider {
   // Check dynamic registry first, then settings
   const def = registry.get(id);
   if (def) return def;
   const custom = getSettings().providers?.[id];
-  if (custom) return custom;
+  if (custom) {
+    if (!isValidProvider(custom)) throw new ProviderError(`Provider "${id}" has invalid config (missing/wrong-typed name, command, defaultModel, baseArgs, or models)`);
+    return custom;
+  }
   throw new ProviderError(`Unknown provider: ${id}`);
 }
 
