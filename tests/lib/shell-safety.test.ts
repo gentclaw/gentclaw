@@ -62,6 +62,10 @@ describe('validateShellCmd', () => {
     expect(validateShellCmd('node --eval "1+1"').safe).toBe(false);
     expect(validateShellCmd('node --print "1"').safe).toBe(false);
     expect(validateShellCmd('python3 -p "1"').safe).toBe(false);
+    // attached-value form must also be blocked (no space between flag and value)
+    expect(validateShellCmd('node --eval=1+1').safe).toBe(false);
+    expect(validateShellCmd('python3 -c=import_os').safe).toBe(false);
+    expect(validateShellCmd('node --print=1').safe).toBe(false);
     // non-eval flags still allowed
     expect(validateShellCmd('node --version')).toEqual({ safe: true });
     expect(validateShellCmd('python3 script.py')).toEqual({ safe: true });

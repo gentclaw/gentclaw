@@ -60,7 +60,7 @@ describe('appendMemoryFile', () => {
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.stringContaining('.tmp-'),
       expect.stringContaining('first note'),
-      'utf-8',
+      { encoding: 'utf-8', mode: 0o600 },
     );
     expect(fs.renameSync).toHaveBeenCalledWith(
       expect.stringContaining('.tmp-'),

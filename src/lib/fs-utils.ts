@@ -6,11 +6,13 @@ import { log } from './log.js';
 
 const L = log('fs-utils');
 
-/** Atomically write text to a file using tmp+rename. Ensures parent directory exists. */
+/** Atomically write text to a file using tmp+rename. Ensures parent directory exists.
+ *  Writes with mode 0o600 — settings/sessions/memory may contain Slack tokens or other secrets;
+ *  default umask (0o022 → 0o644) would leave them world-readable on shared systems. */
 export function atomicWriteText(filePath: string, content: string): void {
-  mkdirSync(dirname(filePath), { recursive: true });
+  mkdirSync(dirname(filePath), { recursive: true, mode: 0o700 });
   const tmp = join(dirname(filePath), `.tmp-${randomBytes(6).toString('hex')}`);
-  writeFileSync(tmp, content, 'utf-8');
+  writeFileSync(tmp, content, { encoding: 'utf-8', mode: 0o600 });
   renameSync(tmp, filePath);
 }
 

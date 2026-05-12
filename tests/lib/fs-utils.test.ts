@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, readFileSync, readdirSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -44,6 +44,20 @@ describe('fs-utils', () => {
       const files = readdirSync(testDir);
       const tmpFiles = files.filter(f => f.startsWith('.tmp-'));
       expect(tmpFiles).toHaveLength(0);
+    });
+
+    it.skipIf(process.platform === 'win32')('writes with mode 0o600 (not world-readable)', () => {
+      const p = join(testDir, 'secret.txt');
+      atomicWriteText(p, 'slack-bot-token');
+      const mode = statSync(p).mode & 0o777;
+      expect(mode).toBe(0o600);
+    });
+
+    it.skipIf(process.platform === 'win32')('creates new parent dirs with mode 0o700', () => {
+      const subdir = join(testDir, 'fresh-secrets');
+      atomicWriteText(join(subdir, 'inner.txt'), 'x');
+      const mode = statSync(subdir).mode & 0o777;
+      expect(mode).toBe(0o700);
     });
   });
 

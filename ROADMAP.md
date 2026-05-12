@@ -12,6 +12,11 @@
 - [x] **Inbound memory-tag stripping** — `processMessage` strips `<memory>` / `<shared-memory>` tags from user input before hooks/routing; closes the prompt-injection path where attacker-supplied tags echoed by the LLM would plant arbitrary persistent memory entries.
 - [x] **Per-response memory tag cap** — `extractMemoryFromResponse` honours at most `MAX_MEMORY_TAGS_PER_RESPONSE` (5) tags of each kind, preventing a single chatty reply from flooding agent/shared memory.
 - [x] **Slack reply error propagation** — `reply()` rethrows on `chat.postMessage` failure so the reaction lifecycle marks ❌ instead of ✅ when delivery fails; outer error path wraps the fallback reply in try/catch.
+- [x] **Sensitive file permissions (0o600/0o700)** — `atomicWriteText` writes all files (settings, sessions, memory) with mode 0o600 and creates parent dirs with mode 0o700; the Slack bot token in `settings.json` is no longer world-readable on shared systems.
+- [x] **Shell-safety `--eval=` bypass** — eval-flag detection now strips attached values before lookup so `node --eval=...` / `python3 -c=...` are rejected; previously the entire token (`--eval=code`) missed the `EVAL_FLAGS` set and slipped past `/bash`.
+- [x] **Stop-flag IPC permissions** — `/stop` writes the flag with mode 0o600 in a 0o700 dir; another local user can no longer signal stop on the daemon's sessions via a world-writable file.
+- [x] **`service.ts` shell-injection hardening** — replaced `execSync(string)` with `execFileSync(bin, argv)`, derived UID from `process.getuid()`, and gated `loginctl enable-linger <USER>` behind a strict `[a-zA-Z0-9_.-]+` validator so a hostile `$USER` cannot ride into systemd setup.
+- [x] **Plist / systemd unit escaping + mode** — XML-escape all interpolated values in the launchd plist, strip newlines from systemd `Environment=` values, and write both unit files with mode 0o600; a `&` in `$PATH` no longer corrupts the plist and the service files don't expose machine details to other local users.
 
 ## Planned (see `llm/plan/`)
 

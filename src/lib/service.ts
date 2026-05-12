@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, realpathSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { homedir, platform } from 'node:os';
@@ -23,49 +23,81 @@ function unitPath(): string {
   return resolve(homedir(), '.config', 'systemd', 'user', 'gentclaw.service');
 }
 
-function exec(cmd: string): string {
+/** Run a service-management binary with argv (no shell). Suppresses non-zero exits — callers treat
+ *  empty output as "not running / already gone". Argv form avoids shell interpolation of USER/UID. */
+function run(bin: string, args: string[]): string {
   try {
-    return execSync(cmd, {
+    return execFileSync(bin, args, {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...SUBPROCESS_ENV, USER: process.env.USER || '' },
+      env: SUBPROCESS_ENV,
     }).trim();
   } catch {
     return '';
   }
 }
 
+/** Stable numeric UID for launchctl `gui/<uid>` domain. process.getuid() is POSIX-only;
+ *  service install isn't supported on Windows so this branch is unreachable there. */
+function uid(): number {
+  const fn = process.getuid;
+  return fn ? fn.call(process) : 0;
+}
+
+/** POSIX-style username for `loginctl enable-linger`. Validated to a strict character set
+ *  before being passed as an argv element — defence in depth even though execFileSync
+ *  does not invoke a shell. Empty / invalid → null (caller skips the call). */
+function safeUserName(): string | null {
+  const raw = process.env['USER'] ?? '';
+  return /^[a-zA-Z0-9_.-]+$/.test(raw) ? raw : null;
+}
+
+/** XML-escape a value before embedding in a plist `<string>` body. PATH commonly contains `&`. */
+function xmlEscape(v: string): string {
+  return v
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/** systemd `Environment=` values may not contain newlines; strip them defensively. */
+function systemdEnvValue(v: string): string {
+  return v.replace(/[\r\n]/g, '');
+}
+
 function writePlist(): string {
   const path = plistPath();
-  mkdirSync(resolve(homedir(), 'Library', 'LaunchAgents'), { recursive: true });
+  mkdirSync(resolve(homedir(), 'Library', 'LaunchAgents'), { recursive: true, mode: 0o700 });
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>${LABEL}</string>
+  <key>Label</key><string>${xmlEscape(LABEL)}</string>
   <key>ProgramArguments</key><array>
-    <string>${NODE_BIN}</string>
-    <string>${SCRIPT_DIR}/dist/cli.js</string>
+    <string>${xmlEscape(NODE_BIN)}</string>
+    <string>${xmlEscape(`${SCRIPT_DIR}/dist/cli.js`)}</string>
     <string>start</string>
   </array>
-  <key>WorkingDirectory</key><string>${SCRIPT_DIR}</string>
+  <key>WorkingDirectory</key><string>${xmlEscape(SCRIPT_DIR)}</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>10</integer>
-  <key>StandardOutPath</key><string>${PATHS.logs}/launchd-stdout.log</string>
-  <key>StandardErrorPath</key><string>${PATHS.logs}/launchd-stderr.log</string>
+  <key>StandardOutPath</key><string>${xmlEscape(`${PATHS.logs}/launchd-stdout.log`)}</string>
+  <key>StandardErrorPath</key><string>${xmlEscape(`${PATHS.logs}/launchd-stderr.log`)}</string>
   <key>EnvironmentVariables</key><dict>
-    <key>PATH</key><string>${process.env['PATH'] ?? ''}</string>
-    <key>HOME</key><string>${homedir()}</string>
+    <key>PATH</key><string>${xmlEscape(process.env['PATH'] ?? '')}</string>
+    <key>HOME</key><string>${xmlEscape(homedir())}</string>
   </dict>
 </dict></plist>`;
-  writeFileSync(path, xml + '\n');
+  writeFileSync(path, xml + '\n', { mode: 0o600 });
   return path;
 }
 
 function writeUnit(): string {
   const path = unitPath();
-  mkdirSync(resolve(homedir(), '.config', 'systemd', 'user'), { recursive: true });
+  mkdirSync(resolve(homedir(), '.config', 'systemd', 'user'), { recursive: true, mode: 0o700 });
   const unit = `[Unit]
 Description=gentclaw
 After=network-online.target
@@ -76,14 +108,14 @@ WorkingDirectory=${SCRIPT_DIR}
 ExecStart=${NODE_BIN} ${SCRIPT_DIR}/dist/cli.js start
 Restart=on-failure
 RestartSec=10
-Environment=PATH=${process.env['PATH'] ?? ''}
-Environment=HOME=${homedir()}
+Environment=PATH=${systemdEnvValue(process.env['PATH'] ?? '')}
+Environment=HOME=${systemdEnvValue(homedir())}
 StandardOutput=append:${PATHS.logs}/systemd-stdout.log
 StandardError=append:${PATHS.logs}/systemd-stderr.log
 
 [Install]
 WantedBy=default.target`;
-  writeFileSync(path, unit + '\n');
+  writeFileSync(path, unit + '\n', { mode: 0o600 });
   return path;
 }
 
@@ -92,15 +124,18 @@ export function installService(): void {
   mkdirSync(PATHS.logs, { recursive: true });
   const os = platform();
   if (os === 'darwin') {
-    exec(`launchctl bootout gui/$(id -u)/${LABEL}`);
+    const domain = `gui/${uid()}/${LABEL}`;
+    const target = `gui/${uid()}`;
+    run('launchctl', ['bootout', domain]);
     writePlist();
-    exec(`launchctl bootstrap gui/$(id -u) ${plistPath()}`);
+    run('launchctl', ['bootstrap', target, plistPath()]);
   } else if (os === 'linux') {
-    exec('systemctl --user stop gentclaw');
+    run('systemctl', ['--user', 'stop', 'gentclaw']);
     writeUnit();
-    exec('systemctl --user daemon-reload');
-    exec('systemctl --user enable --now gentclaw');
-    exec(`loginctl enable-linger ${process.env['USER'] ?? ''}`);
+    run('systemctl', ['--user', 'daemon-reload']);
+    run('systemctl', ['--user', 'enable', '--now', 'gentclaw']);
+    const user = safeUserName();
+    if (user) run('loginctl', ['enable-linger', user]);
   } else {
     throw new Error(`Unsupported platform: ${os}. Start manually with: npm start`);
   }
@@ -110,12 +145,12 @@ export function installService(): void {
 export function uninstallService(): void {
   const os = platform();
   if (os === 'darwin') {
-    exec(`launchctl bootout gui/$(id -u)/${LABEL}`);
+    run('launchctl', ['bootout', `gui/${uid()}/${LABEL}`]);
     try { unlinkSync(plistPath()); } catch { /* already gone */ }
   } else if (os === 'linux') {
-    exec('systemctl --user disable --now gentclaw');
+    run('systemctl', ['--user', 'disable', '--now', 'gentclaw']);
     try { unlinkSync(unitPath()); } catch { /* already gone */ }
-    exec('systemctl --user daemon-reload');
+    run('systemctl', ['--user', 'daemon-reload']);
   }
 }
 
@@ -124,11 +159,11 @@ export function serviceStatus(): { registered: boolean; running: boolean } {
   const os = platform();
   if (os === 'darwin') {
     const registered = existsSync(plistPath());
-    const out = exec(`launchctl print gui/$(id -u)/${LABEL}`);
+    const out = run('launchctl', ['print', `gui/${uid()}/${LABEL}`]);
     return { registered, running: out.length > 0 };
   } else if (os === 'linux') {
     const registered = existsSync(unitPath());
-    const out = exec('systemctl --user is-active gentclaw');
+    const out = run('systemctl', ['--user', 'is-active', 'gentclaw']);
     return { registered, running: out === 'active' };
   }
   return { registered: false, running: false };

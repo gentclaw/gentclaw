@@ -158,8 +158,9 @@ const handlers: Record<string, (args: string, ctx: CmdContext) => CmdResult> = {
 
   stop: (_args, ctx) => {
     const flagFile = stopFlagPath(ctx.sessionKey);
-    mkdirSync(dirname(flagFile), { recursive: true });
-    writeFileSync(flagFile, Date.now().toString(), 'utf-8');
+    mkdirSync(dirname(flagFile), { recursive: true, mode: 0o700 });
+    /** mode 0o600 — IPC file must not be world-writable; any local user could otherwise signal stop. */
+    writeFileSync(flagFile, Date.now().toString(), { encoding: 'utf-8', mode: 0o600 });
     L.info('stop flag written', { sessionKey: ctx.sessionKey });
     return cmdReply('Stop signal sent.');
   },
