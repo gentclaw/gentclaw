@@ -13,6 +13,7 @@ import { isBlockedUrl } from '../lib/url-safety.js';
 import type { InboundMsg } from '../lib/types.js';
 
 const MAX_FILE_SIZE = 100_000; // 100KB — skip large files
+const FILE_DOWNLOAD_TIMEOUT_MS = 15_000; // wall-clock cap so a stalled Slack endpoint can't block the per-session sequencer
 
 /** Resolve Slack token with settings → env fallback. */
 function getSlackToken(key: 'botToken' | 'appToken', envKey: string): string | undefined {
@@ -84,28 +85,30 @@ function isSlackEvent(event: unknown): event is {
   return typeof ev.channel === 'string' && typeof ev.ts === 'string';
 }
 
+type CapReason = 'ok' | 'no-body' | 'overflow';
+
 /** Stream-read body, abort once total bytes exceed `cap`. Slack's reported `size` is untrusted —
  *  a malformed file with `size:100` but a 10 GB body would OOM the daemon if we used resp.text().
- *  Missing body → treat as overflow rather than fall back to unbounded resp.text(). */
-async function readCapped(resp: Response, cap: number): Promise<{ text: string; overflowed: boolean }> {
+ *  Missing body → distinct `no-body` reason so callers can produce accurate copy. */
+async function readCapped(resp: Response, cap: number): Promise<{ text: string; reason: CapReason }> {
   const reader = resp.body?.getReader();
-  if (!reader) return { text: '', overflowed: true };
+  if (!reader) return { text: '', reason: 'no-body' };
 
   const chunks: Uint8Array[] = [];
   let received = 0;
-  let overflowed = false;
+  let reason: CapReason = 'ok';
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     received += value.byteLength;
     if (received > cap) {
-      overflowed = true;
+      reason = 'overflow';
       await reader.cancel();
       break;
     }
     chunks.push(value);
   }
-  return { text: Buffer.concat(chunks.map(c => Buffer.from(c))).toString('utf-8'), overflowed };
+  return { text: Buffer.concat(chunks).toString('utf-8'), reason };
 }
 
 /** Sanitize a Slack-supplied filename before embedding in our `--- file: NAME ---` markers.
@@ -137,7 +140,12 @@ async function downloadAttachments(files: unknown[], botToken: string): Promise<
     }
 
     try {
-      const resp = await fetch(url, { headers: { Authorization: `Bearer ${botToken}` } });
+      /** Wall-clock cap on both connect + body-read — without it, a slow-loris Slack endpoint
+       *  blocks the per-session sequencer indefinitely (RAM cap doesn't help when bytes trickle). */
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${botToken}` },
+        signal: AbortSignal.timeout(FILE_DOWNLOAD_TIMEOUT_MS),
+      });
       if (!resp.ok) {
         parts.push(`[file: ${name} — download failed: ${resp.status}]`);
         continue;
@@ -148,8 +156,12 @@ async function downloadAttachments(files: unknown[], botToken: string): Promise<
         parts.push(`[file: ${name} — skipped (content-length exceeded)]`);
         continue;
       }
-      const { text, overflowed } = await readCapped(resp, MAX_FILE_SIZE);
-      if (overflowed) {
+      const { text, reason } = await readCapped(resp, MAX_FILE_SIZE);
+      if (reason === 'no-body') {
+        parts.push(`[file: ${name} — skipped (no response body)]`);
+        continue;
+      }
+      if (reason === 'overflow') {
         parts.push(`[file: ${name} — skipped (body exceeded cap during download)]`);
         continue;
       }

@@ -4,6 +4,9 @@ import { resolve } from 'node:path';
 import { homedir, platform } from 'node:os';
 import { PATHS, SCRIPT_DIR } from './paths.js';
 import { SERVICE_LABEL as LABEL, SUBPROCESS_ENV } from './constants.js';
+import { log } from './log.js';
+
+const L = log('service');
 /** Resolve stable node path — prefer /opt/homebrew/bin/node symlink over versioned Cellar path. Cellar paths break on `brew upgrade node`. */
 export function resolveNodeBin(execPath: string = process.execPath): string {
   if (!execPath.includes('/Cellar/')) return execPath;

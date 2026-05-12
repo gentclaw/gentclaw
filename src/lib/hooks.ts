@@ -49,31 +49,16 @@ function runSubprocess(name: string, command: string, timeoutMs: number, msg: In
 
     const child = execFile(command, [], { timeout: timeoutMs }, (err, stdout) => {
       if (settled) return;
-      if (err) {
-        settled = true;
-        L.warn('hook subprocess failed, allowing', { hook: name, error: err.message });
-        auditLog({ action: 'hook-error', sender: '', detail: `${name}: ${err.message}`, status: 'allowed' });
-        resolve({ action: 'allow' });
-        return;
-      }
+      if (err) { settleAllow(`subprocess failed: ${err.message}`); return; }
       const parsed = tryParseJson(stdout.trim());
-      if (!parsed) {
-        /** Audit invalid JSON — silent allow-on-parse-fail used to mask buggy/compromised hooks. */
-        settleAllow('hook returned invalid JSON, allowing');
-        return;
-      }
+      /** Audit invalid JSON — silent allow-on-parse-fail used to mask buggy/compromised hooks. */
+      if (!parsed) { settleAllow('returned invalid JSON, allowing'); return; }
       settled = true;
       resolve(parseHookAction(parsed));
     });
 
     /** Spawn errors (ENOENT, EACCES) emit on the child, not the execFile callback — handle explicitly so the promise can't hang. */
-    child.on('error', (err) => {
-      if (settled) return;
-      settled = true;
-      L.warn('hook spawn error, allowing', { hook: name, error: err.message });
-      auditLog({ action: 'hook-error', sender: '', detail: `${name}: ${err.message}`, status: 'allowed' });
-      resolve({ action: 'allow' });
-    });
+    child.on('error', (err) => settleAllow(`spawn error: ${err.message}`));
 
     /** EPIPE on a fast-exiting hook would throw synchronously from write/end and crash the daemon
      *  without this guard — failsafe-allow keeps the daemon alive (parity with timeout/spawn paths). */
