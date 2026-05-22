@@ -49,7 +49,9 @@ function readCappedFile(path: string, cap: number): string {
   let fd: number | undefined;
   try {
     fd = openSync(path, 'r');
-    const buf = Buffer.alloc(cap);
+    /** allocUnsafe — only the first `n` bytes are read + stringified; the uninitialized tail is
+     *  never observed. Avoids zero-filling a MAX_CHILD_OUTPUT_BYTES (10 MB) buffer every run. */
+    const buf = Buffer.allocUnsafe(cap);
     const n = readSync(fd, buf, 0, cap, 0);
     return buf.subarray(0, n).toString('utf-8');
   } finally {

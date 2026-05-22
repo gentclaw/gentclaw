@@ -99,11 +99,14 @@ export function runCommand(
       const rawOut = stripAnsi(Buffer.concat(stdout).toString('utf-8'));
       const rawErr = stripAnsi(Buffer.concat(stderr).toString('utf-8'));
       if (rawErr) L.warn('child stderr', { code, err: rawErr.slice(0, 200) });
-      /** Surface the cap end-to-end — silent truncation hides bad agent state from the user. */
-      const out = overflowed ? `${rawOut}\n[output truncated at ${MAX_CHILD_OUTPUT_BYTES} bytes]` : rawOut;
+      /** Surface the cap end-to-end — silent truncation hides bad agent state from the user.
+       *  Marker applies to both branches: an overflow may be stderr-only with empty stdout. */
+      const marker = `\n[output truncated at ${MAX_CHILD_OUTPUT_BYTES} bytes]`;
+      const out = overflowed ? rawOut + marker : rawOut;
+      const errText = overflowed ? rawErr + marker : rawErr;
       settle(() => {
         if (code !== 0 && !rawOut) {
-          reject(new RunError(rawErr || `Process exited with code ${code}`, code ?? 1));
+          reject(new RunError(errText || `Process exited with code ${code}`, code ?? 1));
         } else {
           resolve({ response: out, exitCode: code ?? 0 });
         }

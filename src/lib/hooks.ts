@@ -57,18 +57,24 @@ function runSubprocess(name: string, command: string, timeoutMs: number, msg: In
       resolve(parseHookAction(parsed));
     });
 
-    /** Spawn errors (ENOENT, EACCES) emit on the child, not the execFile callback — handle explicitly so the promise can't hang. */
+    /** Spawn failure (ENOENT, EACCES) — the child never ran, so there is no stdout decision to
+     *  honor; fail-open. execFile routes this to its callback too, so settling here is harmless
+     *  (settled-guarded) redundancy that keeps the path explicit. */
     child.on('error', (err) => settleAllow(`spawn error: ${err.message}`));
 
-    /** EPIPE on a fast-exiting hook would throw synchronously from write/end and crash the daemon
-     *  without this guard — failsafe-allow keeps the daemon alive (parity with timeout/spawn paths). */
+    /** A hook that exits before reading stdin makes our write hit a closed pipe (EPIPE). That is
+     *  NOT a hook failure — its stdout decision is still valid — so a stdin error must never settle
+     *  the promise (settling would race the callback and discard a real `block`). Log only; the
+     *  execFile callback, guaranteed to fire by the `timeout` option, is the sole authority. The
+     *  try/catch + 'error' listener exist purely so an EPIPE can't crash the daemon. */
+    const onStdinError = (err: Error) => L.debug('hook stdin write failed (ignored)', { hook: name, error: err.message });
     try {
       child.stdin?.write(JSON.stringify({ message: msg.message, sender: msg.sender, timestamp: msg.timestamp }));
       child.stdin?.end();
     } catch (err) {
-      settleAllow(`hook stdin write failed: ${(err as Error).message}`);
+      onStdinError(err as Error);
     }
-    child.stdin?.on('error', (err) => settleAllow(`hook stdin error: ${err.message}`));
+    child.stdin?.on('error', onStdinError);
   });
 }
 

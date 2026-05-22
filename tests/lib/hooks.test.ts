@@ -142,16 +142,18 @@ describe('runHooks', () => {
     expect(result.action).toBe('allow');
   });
 
-  it('allows when subprocess stdin write throws synchronously (EPIPE)', async () => {
+  it('honors the hook decision even when stdin write throws (EPIPE)', async () => {
     const mockExecFile = vi.mocked(execFile);
-    mockExecFile.mockImplementation((_cmd, _args, _opts, _cb) => {
-      // Simulate a child whose stdin throws on write — no callback fires
+    mockExecFile.mockImplementation((_cmd, _args, _opts, cb) => {
+      // Hook exits before reading stdin (write hits a closed pipe) but still
+      // produced a valid `block` on stdout — the EPIPE must NOT pre-empt it.
       const stdin = {
         write: () => { throw new Error('write EPIPE'); },
         end: () => {},
         on: () => stdin,
       };
-      return { stdin, on: () => {} } as unknown as ReturnType<typeof execFile>;
+      setImmediate(() => (cb as Function)(null, '{"action":"block","reason":"nope"}', ''));
+      return { stdin, on: () => stdin } as unknown as ReturnType<typeof execFile>;
     });
 
     mockSettings = {
@@ -161,7 +163,7 @@ describe('runHooks', () => {
     };
 
     const result = await runHooks('preMessage', makeMsg());
-    expect(result.action).toBe('allow');
+    expect(result.action).toBe('block');
   });
 
   it('allows when subprocess emits spawn error (ENOENT)', async () => {

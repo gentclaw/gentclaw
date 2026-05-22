@@ -46,10 +46,9 @@ export function validateShellCmd(cmd: string, allowlist?: string[]): ShellSafety
   }
 
   if (INTERPRETERS.has(binary)) {
-    /** Tokens include `--eval=code` attached-value form — split on `=` so the flag side is matched.
-     *  String.prototype.split always returns at least one element, so the head is non-undefined. */
+    /** Tokens include `--eval=code` attached-value form — split on `=` so the flag side is matched. */
     const args = trimmed.split(/\s+/).slice(1);
-    if (args.some(a => EVAL_FLAGS.has(a.split('=', 1)[0]!))) {
+    if (args.some(a => EVAL_FLAGS.has(a.split('=', 1)[0]))) {
       return { safe: false, reason: `eval flag not allowed for ${binary}` };
     }
   }
