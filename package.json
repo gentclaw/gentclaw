@@ -44,6 +44,7 @@
     "access": "public"
   },
   "scripts": {
+    "commit": "sh -c 'if [ -z \"$(git status --porcelain)\" ]; then echo \"✓ Nothing to commit — working tree clean\"; else m=\"${MSG:-$*}\"; [ -n \"$m\" ] || m=\"chore: update $(date \"+%Y-%m-%d %H:%M\")\"; git add -A && git commit -m \"$m\" && echo \"✓ Committed: $m\"; fi' --",
     "build": "tsc && chmod +x dist/cli.js",
     "lint": "eslint src/",
     "test": "vitest run",
