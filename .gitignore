@@ -16,9 +16,6 @@ src/**/*.js.map
 !.github/**/*.md
 llm/
 tasks/
+# Local-only: deprecated code history + filed agent state
+# (ship → archive/done/, prr/prr-auto → archive/reviews/).
 archive/
-
-# Filed agent state — local only (ship moves PLAN.md here on done)
-/archive/done/
-# Filed reviews — local only (prr/prr-auto moves analysis MDs here)
-/archive/reviews/
