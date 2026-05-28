@@ -28,11 +28,11 @@
 - [x] **`/stop` atomic write DRY** — replaced the manual `mkdirSync(0o700) + writeFileSync(0o600)` pair in the `/stop` handler with `atomicWriteText`; same permission guarantees, single code path with the rest of the daemon's atomic writes.
 - [x] **Hook subprocess error resilience** — `runSubprocess` now wraps `child.stdin.write/end` in try/catch (EPIPE on a fast-exiting hook no longer crashes the daemon), adds an explicit `child.on('error')` handler for ENOENT/EACCES spawn failures, and audit-logs invalid-JSON returns; a buggy or compromised hook can't hang the pipeline or silently disappear from the audit trail.
 
-## Planned (see `llm/plan/`)
+## Planned
 
-- [ ] Tool system (`exec`, `web_fetch`) — `top-2-features.md`
-- [ ] HTTP API providers — `top-2-features.md`
-- [ ] Draft streaming responses — `adopt-claw-features.md`
-- [ ] File-based durable queue + DLQ — `adopt-claw-features.md`
-- [ ] Provider failover with circuit breaker — `provider-failover.md`
-- [ ] Webhook channel — `add-webhook-channel.md`
+- [ ] Tool system (`exec`, `web_fetch`)
+- [ ] HTTP API providers
+- [ ] Draft streaming responses
+- [ ] File-based durable queue + DLQ
+- [ ] Provider failover with circuit breaker
+- [ ] Webhook channel
