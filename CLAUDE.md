@@ -1,5 +1,7 @@
 # AI Agent Rules
 
+MUST: also apply `~/.claude/CLAUDE.md` (workflow/guardrails). This file = repo state.
+
 All written output (docs, comments, JSDoc, commit messages) — optimize for LLM consumption. No fluff. Token-dense.
 
 ## Review Tracking
