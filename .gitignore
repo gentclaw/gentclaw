@@ -3,6 +3,7 @@ dist/
 src/**/*.js
 src/**/*.js.map
 .env
+.envrc
 *.log
 *.swp
 .DS_Store
